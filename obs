@@ -1,0 +1,101 @@
+#!/bin/bash
+# Observable Desktop CLI Helper
+# Usage: obs <command> [args]
+
+NOTEBOOKS_DIR="${OBS_NOTEBOOKS_DIR:-$HOME/Documents/Observable}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+case "$1" in
+  new)
+    NAME="${2:-untitled}"
+    FILE="$NOTEBOOKS_DIR/${NAME}.html"
+    mkdir -p "$NOTEBOOKS_DIR"
+    cat > "$FILE" << 'NOTEBOOK'
+<!doctype html>
+<notebook>
+  <title>New Notebook</title>
+  <script type="text/markdown">
+# New Notebook
+  </script>
+  <script type="module" pinned>
+// Your code here
+</script>
+</notebook>
+NOTEBOOK
+    echo "Created: $FILE"
+    open -a "Observable Desktop" "$FILE"
+    ;;
+
+  open)
+    FILE="$2"
+    open -a "Observable Desktop" "$FILE"
+    ;;
+
+  reload)
+    # Close and reopen current notebook (proper disk reload)
+    FILE="$2"
+    if [[ -n "$FILE" && -f "$FILE" ]]; then
+      FULL_PATH="$(cd "$(dirname "$FILE")" && pwd)/$(basename "$FILE")"
+      osascript -e 'tell application "Observable Desktop" to activate' \
+                -e 'delay 0.1' \
+                -e 'tell application "System Events" to tell process "Observable Desktop" to keystroke "w" using command down'
+      sleep 0.3
+      open -a "Observable Desktop" "$FULL_PATH"
+      echo "Reloaded: $FULL_PATH"
+    else
+      echo "Usage: obs reload <file.html>"
+    fi
+    ;;
+
+  watch)
+    FILE="$2"
+    exec "$SCRIPT_DIR/obs-watch" "$FILE"
+    ;;
+
+  add-cell)
+    FILE="$2"
+    TYPE="${3:-module}"
+    CONTENT="$4"
+    if [[ ! -f "$FILE" ]]; then
+      echo "File not found: $FILE"; exit 1
+    fi
+    # Insert new cell before </notebook>
+    python3 -c "
+import sys
+content = open('$FILE').read()
+cell = '''  <script type=\"$TYPE\" pinned>
+$CONTENT
+  </script>
+'''
+content = content.replace('</notebook>', cell + '</notebook>')
+open('$FILE', 'w').write(content)
+print('Added cell')
+"
+    ;;
+
+  list)
+    find "$NOTEBOOKS_DIR" -name "*.html" -type f 2>/dev/null | while read f; do
+      title=$(grep -o '<title>[^<]*</title>' "$f" 2>/dev/null | head -1 | sed 's/<[^>]*>//g')
+      echo "$(basename "$f"): ${title:-Untitled}"
+    done
+    ;;
+
+  *)
+    echo "Observable Desktop CLI Helper (for use with Claude Code)"
+    echo ""
+    echo "Usage: obs <command> [args]"
+    echo ""
+    echo "Commands:"
+    echo "  new [name]              Create and open a new notebook"
+    echo "  open <file>             Open notebook in Observable Desktop"
+    echo "  reload <file>           Close and reopen notebook (disk reload)"
+    echo "  watch <file>            Watch file and auto-reload on changes"
+    echo "  add-cell <file> <type> <content>   Add a cell to notebook"
+    echo "  list                    List notebooks in default directory"
+    echo ""
+    echo "Workflow with Claude Code:"
+    echo "  1. obs watch notebook.html   # Start watcher in one terminal"
+    echo "  2. Edit the .html file       # Claude Code edits the file"
+    echo "  3. Notebook auto-reloads     # See changes in Observable Desktop"
+    ;;
+esac

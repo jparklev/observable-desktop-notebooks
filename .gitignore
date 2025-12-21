@@ -1,0 +1,6 @@
+logs/
+*.pyc
+__pycache__/
+.vite/
+/tmp/
+*.png

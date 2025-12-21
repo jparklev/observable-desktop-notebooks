@@ -1,0 +1,51 @@
+<!doctype html>
+<notebook theme="air">
+  <title>AI Demo Notebook</title>
+  <script id="1" type="text/markdown">
+# AI Demo Notebook
+
+    This notebook is edited by **Claude Code**!
+  </script>
+  <script id="4" type="module" pinned>
+// Line chart added by Claude Code at the CLI!
+    Plot.plot({
+      marks: [
+    Plot.line([
+      {x: 0, y: 0},
+      {x: 1, y: 3},
+      {x: 2, y: 1},
+      {x: 3, y: 5},
+      {x: 4, y: 2},
+      {x: 5, y: 7}
+    ], {x: "x", y: "y", stroke: "red", strokeWidth: 3})
+      ],
+      height: 150
+    })
+  </script>
+  <script id="2" type="module" pinned>
+// Updated by Claude Code!
+    3 * 3 * 3
+  </script>
+  <script id="3" type="module" pinned>
+// Bar chart created by Claude Code
+    Plot.plot({
+      marks: [
+    Plot.barY([10, 20, 30, 40, 50], {fill: "steelblue"})
+      ],
+      height: 200
+    })
+  </script>
+  <script id="5" type="module" pinned>
+// Fibonacci Scatter
+Plot.plot({
+  marks: [
+    Plot.dot([
+      {x: 1, y: 1}, {x: 2, y: 1}, {x: 3, y: 2},
+      {x: 4, y: 3}, {x: 5, y: 5}, {x: 6, y: 8}
+    ], {x: "x", y: "y", fill: "orange", r: 12})
+  ],
+  height: 200,
+  grid: true
+})
+  </script>
+</notebook>
