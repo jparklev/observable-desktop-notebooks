@@ -192,6 +192,89 @@ class Notebook:
         ]
 
 
+def execute_js_in_observable(js_code: str, close_devtools: bool = True) -> bool:
+    """Execute JavaScript in Observable Desktop via DevTools console
+
+    Opens devtools (if not already open), executes code, optionally closes devtools.
+    Window is moved off-screen during operation to minimize visibility.
+    Returns True if successful.
+    """
+    # Escape quotes in JS code for AppleScript
+    js_escaped = js_code.replace('\\', '\\\\').replace('"', '\\"')
+
+    close_cmd = '''
+            -- Close devtools with Cmd+Option+I (toggle off)
+            key code 34 using {command down, option down}
+            delay 0.3
+    ''' if close_devtools else ''
+
+    script = f'''
+    tell application "System Events"
+        if not (exists process "Observable Desktop") then
+            return "no_process"
+        end if
+
+        tell process "Observable Desktop"
+            if (count of windows) = 0 then
+                return "no_window"
+            end if
+
+            -- Save original position
+            set origPos to position of window 1
+
+            -- Move off-screen
+            set position of window 1 to {{-3000, -3000}}
+        end tell
+    end tell
+
+    -- Activate (now off-screen so user won't see)
+    tell application "Observable Desktop" to activate
+    delay 0.15
+
+    tell application "System Events"
+        tell process "Observable Desktop"
+            -- Open Console directly with Cmd+Option+C
+            key code 8 using {{command down, option down}}
+            delay 0.5
+
+            -- Type the JS code
+            keystroke "{js_escaped}"
+            delay 0.15
+
+            -- Execute with Enter
+            key code 36
+            delay 0.4
+
+            {close_cmd}
+
+            -- Restore position
+            set position of window 1 to origPos
+        end tell
+    end tell
+
+    return "ok"
+    '''
+
+    result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+    return "ok" in result.stdout
+
+
+def close_observable_devtools() -> bool:
+    """Close devtools if open"""
+    script = '''
+    tell application "System Events"
+        if exists process "Observable Desktop" then
+            tell process "Observable Desktop"
+                -- Toggle devtools off with Cmd+Option+I
+                key code 34 using {command down, option down}
+            end tell
+        end if
+    end tell
+    '''
+    subprocess.run(['osascript', '-e', script], capture_output=True)
+    return True
+
+
 def get_observable_window_id() -> Optional[int]:
     """Get the window ID for Observable Desktop without changing focus"""
     # Compile and cache the Swift helper for getting window IDs
@@ -518,6 +601,204 @@ def edit_and_view(file_path: str, cell_id: str | int, content: str,
         raise ValueError(f"Cell not found: {cell_id}")
 
 
+def capture_cell(file_path: str, cell_index: int, output_path: Optional[str] = None,
+                 wait: float = 2.0) -> str:
+    """Capture a specific cell by temporarily moving it to the top (completely silent)
+
+    1. Reorders cells to put target at top
+    2. Reloads notebook in background
+    3. Captures top section
+    4. Restores original order
+    5. Reloads again
+
+    Returns path to screenshot.
+    """
+    nb = Notebook(file_path)
+
+    if cell_index < 0 or cell_index >= len(nb.cells):
+        raise ValueError(f"Cell index {cell_index} out of range (0-{len(nb.cells)-1})")
+
+    if output_path is None:
+        output_path = tempfile.mktemp(suffix='.png')
+
+    # Save original order
+    original_cells = nb.cells.copy()
+
+    # Move target cell to top (index 0)
+    target_cell = nb.cells.pop(cell_index)
+    nb.cells.insert(0, target_cell)
+
+    # Re-index
+    for i, c in enumerate(nb.cells):
+        c.index = i
+
+    # Save and reload
+    nb.save()
+    time.sleep(0.2)
+    reload_notebook(file_path, background=True)
+    time.sleep(wait)
+
+    # Capture top section (silent)
+    window_id = get_observable_window_id()
+    if window_id:
+        subprocess.run(['screencapture', '-l', str(window_id), '-o', '-x', output_path],
+                      capture_output=True)
+
+    # Restore original order
+    nb.cells = original_cells
+    for i, c in enumerate(nb.cells):
+        c.index = i
+    nb.save()
+    time.sleep(0.2)
+    reload_notebook(file_path, background=True)
+
+    return output_path
+
+
+def render_notebook(file_path: str, output_dir: Optional[str] = None,
+                    sections: list[str] = None, wait: float = 2.5) -> list[str]:
+    """Render notebook and capture screenshots silently (Jeeves mode)
+
+    Opens notebook in background, waits for render, captures sections,
+    closes window - all without stealing focus from user's current app.
+
+    Args:
+        file_path: Path to notebook
+        output_dir: Where to save screenshots (default: temp dir)
+        sections: Which sections to capture: 'top', 'middle', 'bottom', 'full'
+                  Default: ['top'] for minimal interruption
+        wait: Seconds to wait for notebook to render
+
+    Returns:
+        List of screenshot paths
+    """
+    if sections is None:
+        sections = ['top']
+
+    if output_dir is None:
+        output_dir = tempfile.gettempdir()
+
+    full_path = str(Path(file_path).resolve())
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save current frontmost app
+    result = subprocess.run([
+        'osascript', '-e',
+        'tell application "System Events" to get name of first process whose frontmost is true'
+    ], capture_output=True, text=True)
+    prev_app = result.stdout.strip()
+
+    screenshots = []
+
+    try:
+        # Close any existing Observable windows first (background)
+        close_script = '''
+        tell application "System Events"
+            if exists process "Observable Desktop" then
+                tell process "Observable Desktop"
+                    repeat while (count of windows) > 0
+                        try
+                            click button 1 of window 1
+                        on error
+                            exit repeat
+                        end try
+                        delay 0.1
+                    end repeat
+                end tell
+            end if
+        end tell
+        '''
+        subprocess.run(['osascript', '-e', close_script], capture_output=True)
+        time.sleep(0.3)
+
+        # Open in background
+        subprocess.run(['open', '-g', '-a', 'Observable Desktop', full_path], capture_output=True)
+
+        # Wait for render
+        time.sleep(wait)
+
+        # Get window ID for background capture
+        window_id = get_observable_window_id()
+        if not window_id:
+            raise RuntimeError("Could not find Observable Desktop window")
+
+        # Capture sections
+        for section in sections:
+            ts = int(time.time() * 1000)
+            output_path = str(output_dir / f"render_{section}_{ts}.png")
+
+            if section == 'top':
+                # Just capture current view (top of notebook)
+                subprocess.run(['screencapture', '-l', str(window_id), '-o', '-x', output_path],
+                              capture_output=True)
+                screenshots.append(output_path)
+
+            elif section in ('middle', 'bottom', 'full'):
+                # Scroll using keyboard (simpler than devtools injection)
+                # Hide window during scroll to avoid visual disruption
+
+                if section == 'middle':
+                    scroll_count = 4
+                elif section == 'bottom':
+                    scroll_count = 15
+                else:
+                    scroll_count = 0
+
+                if scroll_count > 0:
+                    # Scrolling requires activating the app (may briefly steal focus
+                    # if Observable is in a different Space)
+                    script = f'''
+                    tell application "Observable Desktop" to activate
+                    delay 0.15
+                    tell application "System Events"
+                        tell process "Observable Desktop"
+                            repeat {scroll_count} times
+                                key code 121
+                                delay 0.03
+                            end repeat
+                        end tell
+                    end tell
+                    delay 0.15
+                    tell application "{prev_app}" to activate
+                    '''
+                    subprocess.run(['osascript', '-e', script], capture_output=True)
+                    time.sleep(0.2)
+
+                subprocess.run(['screencapture', '-l', str(window_id), '-o', '-x', output_path],
+                              capture_output=True)
+                screenshots.append(output_path)
+
+    finally:
+        # Close window quietly
+        close_script = '''
+        tell application "System Events"
+            if exists process "Observable Desktop" then
+                tell process "Observable Desktop"
+                    repeat while (count of windows) > 0
+                        try
+                            click button 1 of window 1
+                        on error
+                            exit repeat
+                        end try
+                        delay 0.05
+                    end repeat
+                end tell
+            end if
+        end tell
+        '''
+        subprocess.run(['osascript', '-e', close_script], capture_output=True)
+
+        # Restore focus to previous app
+        if prev_app and prev_app != "Observable Desktop":
+            subprocess.run([
+                'osascript', '-e',
+                f'tell application "{prev_app}" to activate'
+            ], capture_output=True)
+
+    return screenshots
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Observable Desktop CLI for Claude Code",
@@ -606,6 +887,24 @@ Examples:
                      help='Bring Observable to front (default: background)')
     ev_p.add_argument('--no-scroll', action='store_true',
                      help='Do not scroll to edited cell')
+
+    # render (Jeeves mode)
+    render_p = subparsers.add_parser('render', help='Render notebook silently and capture (Jeeves mode)')
+    render_p.add_argument('path', help='Notebook path')
+    render_p.add_argument('--output', '-o', help='Output directory (default: temp)')
+    render_p.add_argument('--sections', '-s', nargs='+', default=['top'],
+                         choices=['top', 'middle', 'bottom'],
+                         help='Sections to capture (default: top). NOTE: middle/bottom require scrolling which may briefly steal focus if Observable is in a different Space.')
+    render_p.add_argument('--wait', '-w', type=float, default=2.5,
+                         help='Seconds to wait for render (default: 2.5)')
+
+    # capture-cell (completely silent - moves cell to top, captures, restores)
+    cc_p = subparsers.add_parser('capture-cell', help='Capture specific cell silently (moves to top, captures, restores)')
+    cc_p.add_argument('path', help='Notebook path')
+    cc_p.add_argument('cell', type=int, help='Cell index to capture')
+    cc_p.add_argument('--output', '-o', help='Output path (default: temp)')
+    cc_p.add_argument('--wait', '-w', type=float, default=2.0,
+                     help='Seconds to wait for render (default: 2.0)')
 
     # reload
     reload_p.add_argument('--background', '-b', action='store_true',
@@ -754,6 +1053,25 @@ Examples:
                 scroll_to=not args.no_scroll
             )
             print(f"Screenshot: {screenshot}")
+
+        elif args.command == 'render':
+            screenshots = render_notebook(
+                args.path,
+                output_dir=args.output,
+                sections=args.sections,
+                wait=args.wait
+            )
+            for path in screenshots:
+                print(path)
+
+        elif args.command == 'capture-cell':
+            screenshot = capture_cell(
+                args.path,
+                args.cell,
+                output_path=args.output,
+                wait=args.wait
+            )
+            print(screenshot)
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

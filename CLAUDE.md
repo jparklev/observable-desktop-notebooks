@@ -2,6 +2,180 @@
 
 This project enables Claude Code to programmatically edit and view Observable Desktop notebooks.
 
+## Jeeves Mode: Work Silently, Present Results
+
+**Philosophy**: Like Wodehouse's Jeeves (impeccably portrayed by Stephen Fry), the agent should handle everything behind the scenes with quiet competence. The user rings for a data analysis; Jeeves materializes with the finished notebook, a brief summary of findings, and perhaps a raised eyebrow at any anomalies in the data. They shouldn't see the sausage being made—no flashing windows, no interrupted focus, just results.
+
+> "I endeavoured to give satisfaction, sir."
+
+### How It Works
+
+1. **Edit HTML directly** - Notebooks are just HTML files. Edit them with standard file operations without opening Observable Desktop at all.
+
+2. **Iterate silently** - Use `capture-cell` to verify charts look correct. **Iterate as many times as needed.** Refine the visualization until it genuinely illuminates the data. Bostock's principle: "Test forms against actual data."
+
+3. **Present when polished** - Open the notebook for the user with context and analysis.
+
+### On Iteration
+
+**Do not hesitate to iterate.** Capture a cell, examine it, adjust the code, capture again. Good visualization often requires multiple passes:
+- First pass: Does the data show up at all?
+- Second pass: Is the form appropriate? (Bar vs line vs scatter?)
+- Third pass: Are scales, colors, labels right?
+- Fourth pass: Does it communicate insight?
+
+Use `capture-cell` liberally—it's completely silent.
+
+### On Notebook Prose
+
+Notebooks are not just code—they're literate documents. **Include prose, thoughts, and analysis**:
+- Explain what the visualization reveals
+- Note ambiguities or uncertainties in the data
+- Document decisions ("I chose a log scale because...")
+- Surface questions that emerged during analysis
+- Add markdown cells with context, caveats, methodology
+
+When the user asks for analysis, the notebook should read like a report with embedded visualizations, not just a collection of charts.
+
+**Every analytical choice needs justification:**
+- Why this time period? (market regimes, data availability, sample size requirements)
+- Why these metrics? (Sharpe vs Sortino, daily vs weekly returns)
+- What are the limitations? (survivorship bias, single period, simplifications)
+
+**Include forward-looking content:**
+- "Future Analysis Directions" section with concrete next steps
+- Tier by effort: near-term (easy), medium-term (more work), longer-term (research questions)
+- This signals the analysis is a starting point, not a final answer
+
+### Notebook Structure Convention
+
+Notebooks should follow this structure:
+
+1. **Title & Introduction** - Markdown cell with title and context
+2. **Main Content** - ONLY section headers (markdown) and visualization cells
+3. **Appendix** - ALL data and computation cells at the bottom
+
+**Main body should contain ONLY:**
+- Markdown cells (titles, section headers, prose, insights)
+- Visualization cells (Plot.plot, charts, tables rendered with `md`)
+
+**Appendix should contain ALL:**
+- Raw data arrays
+- Data transformations (`bars = rawBars.map(...)`)
+- Derived computations (`dailyReturns`, `stats`, `normalizedData`)
+- Helper functions and configuration (`colors`, `symbols`)
+
+```html
+<!-- MAIN BODY: Only markdown and visualizations -->
+<script type="text/markdown">
+# Title
+</script>
+
+<script type="text/markdown">
+## Section Header
+</script>
+
+<script type="application/vnd.observable.javascript">
+// Visualization only - references variables defined in Appendix
+Plot.plot({marks: [Plot.line(processedData, {x: "date", y: "value"})]})
+</script>
+
+<!-- APPENDIX: All data and computations -->
+<script type="text/markdown">
+---
+
+## Appendix
+</script>
+
+<script type="application/vnd.observable.javascript" hidden>
+colors = ({AAPL: "#555", MSFT: "#00a4ef"})
+</script>
+
+<script type="application/vnd.observable.javascript" hidden>
+processedData = rawData.map(d => ({date: new Date(d.t), value: d.c}))
+</script>
+
+<script type="application/vnd.observable.javascript">
+rawData = [...]
+</script>
+```
+
+Observable's reactive evaluation means cell order doesn't affect execution - cells run based on dependencies regardless of position. This lets us put all "plumbing" at the bottom while keeping the narrative clean.
+
+### Cell Display Best Practices
+
+**Hiding intermediate computations:**
+- The `hidden` attribute hides cell OUTPUT but code may still appear in some views
+- For cleaner notebooks, prefer computing derived values inside visualization cells using block syntax:
+
+```javascript
+// Instead of separate cell: `bars = rawBars.map(...)`
+// Compute inline in the visualization:
+{
+  const bars = rawBars.map(d => ({date: new Date(d.t), close: d.c}));
+  return Plot.plot({marks: [Plot.line(bars, {x: "date", y: "close"})]});
+}
+```
+
+**Volume/bar charts with many data points:**
+- Daily data over 6+ months creates unreadable x-axis labels
+- Use weekly binning: `Plot.rectY(data, Plot.binX({y: "sum"}, {x: "date", y: "volume", interval: "week"}))`
+- Set explicit ticks: `x: {type: "time", ticks: "month"}`
+- This aggregates daily bars into weekly summaries with readable month labels
+
+### Example Workflow
+
+```bash
+# 1. Create notebook
+./observable.py new notebooks/report.html --title "Q4 Analysis"
+
+# 2. Add and edit cells (HTML editing - no Observable needed)
+
+# 3. Iterate on visualizations silently
+./observable.py capture-cell notebooks/report.html 5  # Check chart
+# Hmm, the bars are too thin. Adjust code...
+./observable.py capture-cell notebooks/report.html 5  # Better.
+
+# 4. When polished, open for the user
+./observable.py open notebooks/report.html
+```
+
+**When presenting**: "Your Q4 analysis is ready, sir. Revenue shows a 12% uptick in the Eastern region, though I note some irregularity in the November figures that may warrant investigation. The notebook is open for your review."
+
+### Verifying Output: Use `capture-cell` Only
+
+When you need to verify a cell's output before presenting:
+
+```bash
+# Capture a specific cell by index (completely silent!)
+# Moves cell to top temporarily, captures, restores order
+./observable.py capture-cell notebooks/report.html 6    # Capture cell at index 6
+./observable.py capture-cell notebooks/report.html 10   # Capture cell at index 10
+
+# List cells to find the index you want
+./observable.py list notebooks/report.html
+```
+
+**`capture-cell` is the ONLY method to use** for verification screenshots:
+- Completely silent (no window focus changes)
+- Works for any cell regardless of position
+- Temporarily reorders cells, captures, then restores
+
+**DO NOT use `render` for verification** - it closes/disrupts the notebook and may prevent `open` from working correctly afterward.
+
+### Commands for Jeeves Mode
+
+| Command | Purpose | User Visible? |
+|---------|---------|---------------|
+| `new`, `add`, `edit`, `delete` | Edit notebook HTML | No |
+| `capture-cell <idx>` | **Capture any cell silently** | No |
+| `list` | Show cell indices | No |
+| `open` | **Open final notebook for user** | Yes (the deliverable!) |
+
+**During development**: Edit HTML directly, use `capture-cell` to verify specific outputs.
+
+**When complete**: **ALWAYS use `open` to present the finished notebook to the user.** This is the deliverable—don't skip it!
+
 ## Notebooks Directory
 
 All notebooks live in `notebooks/`. **Before creating a new notebook**, always search existing notebooks to check if the user wants to edit/refactor an existing one:
@@ -14,11 +188,9 @@ ls notebooks/
 grep -l "keyword" notebooks/*.html
 ```
 
-Current notebooks:
-- `reactivity-demo.html` - Demonstrates reactive variables, mutable state, viewof inputs
-- `mutable-demo.html` - Mutable variable examples
-- `ai-demo.html`, `ai-test.html` - AI-related experiments
-- `hello.html` - Basic hello world
+## Version Control
+
+This project uses **jj** (Jujutsu) colocated with git. Use all jj features freely (rebase, squash, split, etc).
 
 ## Quick Start for Agents
 
@@ -130,12 +302,18 @@ Dark: `coffee`, `deep-space`, `ink`, `midnight`, `near-midnight`, `ocean-floor`,
 ./observable.py screenshot
 ./observable.py screenshot -o /tmp/shot.png
 
-# Edit and get visual feedback (RECOMMENDED FOR AGENTS)
+# Edit and get visual feedback (use sparingly - causes window flash)
 ./observable.py edit-and-view notebook.html 1 "2 + 2"
 # Returns path to screenshot showing result
 
-# Watch for changes and auto-reload
+# Capture specific cell silently (RECOMMENDED for verification)
+./observable.py capture-cell notebook.html 5   # Capture cell at index 5
+
+# Watch for changes and auto-reload (for interactive development)
 ./observable.py watch notebook.html
+
+# DEPRECATED: render command - disrupts notebook state, avoid using
+# ./observable.py render notebook.html  # DON'T USE - closes notebook
 ```
 
 ### obs-sync - Two-way Sync
@@ -148,27 +326,46 @@ Dark: `coffee`, `deep-space`, `ink`, `midnight`, `near-midnight`, `ocean-floor`,
 
 ## Workflow for Claude Code Agents
 
-### Visual Edit Loop (Recommended)
-```bash
-# 1. Edit a cell and see the result
-SCREENSHOT=$(./observable.py edit-and-view notebook.html 1 "Math.PI * 2")
+### Jeeves Mode (Recommended)
 
-# 2. View the screenshot to verify
-# The screenshot shows the rendered notebook with your changes
+Work silently, present the finished notebook:
+
+```bash
+# 1. Create notebook (doesn't open Observable)
+./observable.py new notebooks/analysis.html --title "My Analysis"
+
+# 2. Edit cells by modifying HTML directly (use Edit tool)
+# No need to open Observable at all during development
+
+# 3. When ready, open for the user
+./observable.py open notebooks/analysis.html
+
+# 4. Present with context: "Your analysis is ready. Key findings..."
 ```
 
-### Manual Workflow
+### With Verification (Recommended)
+
+If you need to verify output before presenting:
+
 ```bash
-# 1. Start the watcher in a background terminal
-./observable.py watch notebook.html &
+# List cells to find indices
+./observable.py list notebooks/analysis.html
 
-# 2. Edit the HTML file directly
-# (Claude Code edits the file)
+# Capture specific cells to verify (completely silent)
+./observable.py capture-cell notebooks/analysis.html 3   # Check main chart
+./observable.py capture-cell notebooks/analysis.html 7   # Check stats table
 
-# 3. Watcher auto-reloads Observable Desktop
+# Review the screenshots to verify everything looks correct
+# Then ALWAYS open for user at the end
+./observable.py open notebooks/analysis.html
+```
 
-# 4. Take screenshot to see result
-./observable.py screenshot -o /tmp/result.png
+### Legacy: Visual Edit Loop
+
+Use sparingly - causes window flashing:
+```bash
+# Edit a cell and see the result (flashes window)
+SCREENSHOT=$(./observable.py edit-and-view notebook.html 1 "Math.PI * 2")
 ```
 
 ## Python API
@@ -217,8 +414,8 @@ screenshot_path = edit_and_view('notebook.html', 1, "new code")
 - Falls back to polling if fswatch unavailable
 
 ### Screenshots
-- Uses macOS `screencapture` command
-- Brings Observable Desktop to front before capture
+- **Use `capture-cell` for verification** - moves cell to top, captures, restores order (completely silent)
+- The generic `screenshot` command brings Observable Desktop to front (avoid for Jeeves mode)
 - Returns path to PNG file
 
 ### Two-way Sync
@@ -241,22 +438,20 @@ screenshot_path = edit_and_view('notebook.html', 1, "new code")
 4. **Safari Web Inspector** - Not exposed in release builds
 5. **Brief focus steal** - Scroll commands briefly activate Observable (wait time reduced). Reloads are now backgrounded and do not steal focus.
 
-## Scrolling
+## Scrolling (Deprecated)
 
-For cells in the bottom portion of the notebook, the tool scrolls to show them:
+**Prefer `capture-cell` instead** - it's completely silent and works for any cell position.
+
+Scroll commands exist but steal focus and are no longer recommended:
 
 ```bash
-# Scroll commands
+# DEPRECATED - use capture-cell instead
 ./observable.py scroll --top      # Scroll to top
 ./observable.py scroll --bottom   # Scroll to bottom
 ./observable.py scroll --down 3   # Scroll down 3 pages
 ```
 
-The `edit-and-view` command automatically scrolls to show edited cells:
-- Cells in the top 60% of notebook: scrolls from top using Page Downs
-- Cells in the bottom 40%: scrolls to bottom, then up slightly to show output
-
-**Note**: Scrolling requires briefly activating Observable (for keyboard events), but focus is restored to your previous app afterward. Delays have been optimized for better ergonomics.
+Scrolling requires briefly activating Observable (steals focus). Use `capture-cell` for silent operation.
 
 ## Background Mode
 
@@ -865,3 +1060,360 @@ Data tables can be converted to SQL queries or JavaScript code preserving filter
 5. **Object literals** need parentheses: `({key: value})`
 6. **Reactivity is automatic** - cells update when dependencies change
 7. **Order doesn't matter** - cells run in dependency order, not document order
+
+---
+
+# Mike Bostock's Visualization Philosophy
+
+Mike Bostock (creator of D3.js and Observable) on the purpose of visualization:
+
+> "I like the human-centric nature of visualization: you're creating something whose only goal is to help people understand or communicate."
+
+> Per Ben Shneiderman: "The purpose of visualization is insight, not pictures." Visualization is a means to an end. A means to insight.
+
+## The Ladder of Abstraction
+
+Bostock envisions "a ladder of abstraction":
+- **Lowest rung**: Low-level code (WebGL shaders, raw Canvas)
+- **Middle rungs**: D3.js - efficient document manipulation based on data
+- **Higher rungs**: Observable Plot - composable marks and transforms
+- **Highest rung**: Visual interfaces with overview, zoom, filter, details-on-demand
+
+Observable is building this ladder from the bottom up: JavaScript → Canvas/SVG → D3 → Plot.
+
+## 10 Principles from 10 Years of Open-Source Visualization
+
+1. **Teaching drives impact** - Documentation, tutorials, examples are central. Examples inspire, demonstrate techniques, and serve as building blocks.
+
+2. **Support fuels research** - User questions reveal gaps and inform improvements.
+
+3. **Technical features have hidden costs** - Interaction and animation risk obscuring insight. Static visualizations should be the foundation; flourishes should serve exploration, not replace clarity.
+
+4. **Visualization exists on a spectrum** - Exploratory graphics prioritize speed for personal insight; explanatory graphics must communicate clearly.
+
+5. **Data work dominates** - Data preparation is 80% of the effort. Tools like d3-array matter more than flashy rendering.
+
+6. **Test forms against actual data** - Low-friction experimentation enables trying multiple approaches quickly.
+
+7. **Interaction code is buggy** - Simpler interaction patterns reduce maintenance burden.
+
+8. **Build community** - Find collaborators who provide validation, feedback, support, mentorship.
+
+9. **Sustain through enjoyment** - Work you enjoy is more sustainable.
+
+10. **D3's core contribution is a "kernel"** - Not a framework, but efficient manipulation of documents based on data.
+
+## On Learning D3
+
+> "Do I think people should learn D3? It shouldn't be your top priority. It's something you learn progressively when it's useful. We're optimizing what we spend our time on. Because D3 is so low-level, I worry about effort expended on technical aspects that don't directly contribute to understanding."
+
+---
+
+# Observable Plot: Advanced Reference
+
+Plot's philosophy: **No chart types, only layered geometric marks.** Combine fundamental primitives to construct custom visualizations.
+
+## Complete Mark Reference
+
+### Core Marks
+| Mark | Purpose |
+|------|---------|
+| `dot` | Points, scatter plots |
+| `line` | Connect points with lines |
+| `area` | Fill between curves |
+| `bar` | Rectangular bars |
+| `cell` | Grid cells (ordinal x ordinal) |
+| `rect` | Rectangles (quantitative x quantitative) |
+| `rule` | Reference lines |
+| `text` | Labels |
+| `tick` | Tick marks |
+| `link` | Connections between points |
+| `arrow` | Directional arrows |
+| `frame` | Plot border |
+
+### Statistical Marks
+| Mark | Purpose |
+|------|---------|
+| `boxY` / `boxX` | Box plots showing distribution |
+| `density` | Kernel density estimation |
+| `linearRegressionY` | Fitted trend lines |
+
+### Spatial Marks
+| Mark | Purpose |
+|------|---------|
+| `contour` | Isolines for continuous data |
+| `raster` | Pixel-based rendering, interpolation |
+| `image` | Embed raster images |
+| `geo` | Geographic/map features |
+
+### Topological Marks (Delaunay/Voronoi)
+| Mark | Purpose |
+|------|---------|
+| `voronoi` | Voronoi tessellation cells |
+| `voronoiMesh` | Cell boundary mesh |
+| `delaunayLink` | Triangulation edges |
+| `delaunayMesh` | Triangulation mesh |
+| `hull` | Convex hull |
+
+### Hierarchical Marks
+| Mark | Purpose |
+|------|---------|
+| `tree` | Tree/hierarchy layouts |
+| `vector` | Vector fields |
+| `waffle` | Square grid charts |
+
+### Interactive
+| Mark | Purpose |
+|------|---------|
+| `tip` | Tooltips on hover |
+| `auto` | Automatically selects mark type |
+
+## Advanced Mark Examples
+
+### Voronoi Tessellation
+```javascript
+// Color regions by nearest point's category
+Plot.plot({
+  marks: [
+    Plot.voronoi(data, {x: "x", y: "y", fill: "category", fillOpacity: 0.3}),
+    Plot.voronoiMesh(data, {x: "x", y: "y", stroke: "gray"}),
+    Plot.dot(data, {x: "x", y: "y", fill: "category"})
+  ]
+})
+```
+
+### Delaunay Triangulation
+```javascript
+// Show triangulation with convex hull
+Plot.plot({
+  marks: [
+    Plot.delaunayMesh(data, {x: "x", y: "y", stroke: "#ccc"}),
+    Plot.hull(data, {x: "x", y: "y", stroke: "red", strokeWidth: 2}),
+    Plot.dot(data, {x: "x", y: "y"})
+  ]
+})
+```
+
+### Hexbin Heatmap
+```javascript
+// Hexagonal binning with count encoding
+Plot.plot({
+  color: {legend: true},
+  marks: [
+    Plot.hexgrid(),  // Show empty hexagons
+    Plot.dot(data, Plot.hexbin({fill: "count"}, {
+      x: "weight",
+      y: "height",
+      binWidth: 20
+    }))
+  ]
+})
+```
+
+### Hexbin with Size Encoding
+```javascript
+// Bubble hexbin: size = count, color = mean value
+Plot.plot({
+  r: {range: [0, 14]},
+  marks: [
+    Plot.dot(data, Plot.hexbin(
+      {r: "count", fill: "mean"},  // Bivariate encoding
+      {x: "x", y: "y", fill: "value", binWidth: 30}
+    ))
+  ]
+})
+```
+
+### Contour Density
+```javascript
+// Density contours from point cloud
+Plot.plot({
+  marks: [
+    Plot.contour(data, {x: "x", y: "y", fill: "density", bandwidth: 20}),
+    Plot.dot(data, {x: "x", y: "y", r: 1, fill: "white"})
+  ]
+})
+```
+
+### Raster with Barycentric Interpolation
+```javascript
+// Smooth interpolation from scattered samples
+Plot.plot({
+  color: {scheme: "viridis"},
+  marks: [
+    Plot.raster(data, {
+      x: "longitude",
+      y: "latitude",
+      fill: "temperature",
+      interpolate: "barycentric"  // Delaunay-based smooth interpolation
+    })
+  ]
+})
+```
+
+### Function-Based Raster (Mandelbrot-style)
+```javascript
+// Evaluate function at each pixel
+Plot.plot({
+  marks: [
+    Plot.raster({
+      fill: (x, y) => Math.sin(x) * Math.cos(y),
+      x1: -Math.PI, x2: Math.PI,
+      y1: -Math.PI, y2: Math.PI
+    })
+  ]
+})
+```
+
+## Complete Transform Reference
+
+| Transform | Purpose |
+|-----------|---------|
+| `bin` | Group quantitative/temporal data into bins |
+| `group` | Group ordinal/nominal data |
+| `stack` | Stack values (for stacked charts) |
+| `normalize` | Scale to [0,1] for proportions |
+| `window` | Rolling/sliding window operations |
+| `map` | Transform series values (normalize, cumsum) |
+| `select` | Filter to specific points (first, last, min, max) |
+| `hexbin` | Hexagonal binning |
+| `centroid` | Compute centroids |
+| `dodge` | Offset overlapping marks |
+| `filter` | Filter data points |
+| `sort` | Sort data |
+| `reverse` | Reverse order |
+| `shuffle` | Randomize order |
+| `tree` | Compute tree layout |
+| `interval` | Expand points to intervals |
+
+### Transform Composition
+Transforms are composable - chain them:
+```javascript
+Plot.barY(data,
+  Plot.groupX(
+    {y: "sum"},
+    Plot.filter(d => d.value > 0, {x: "category", y: "value"})
+  )
+)
+```
+
+### Bin Transform
+```javascript
+// Histogram
+Plot.rectY(data, Plot.binX({y: "count"}, {x: "value"}))
+
+// 2D heatmap
+Plot.rect(data, Plot.bin({fill: "count"}, {x: "a", y: "b"}))
+```
+
+### Group Transform
+```javascript
+// Bar chart with aggregation
+Plot.barY(data, Plot.groupX({y: "sum"}, {x: "category", y: "amount"}))
+
+// Multiple reducers
+Plot.barY(data, Plot.groupX(
+  {y: "mean", title: d => `n=${d.length}`},
+  {x: "category", y: "value"}
+))
+```
+
+### Stack Transform
+```javascript
+// Stacked area
+Plot.areaY(data, Plot.stackY({x: "date", y: "value", fill: "category"}))
+
+// Normalized (100%) stack
+Plot.areaY(data, Plot.stackY({
+  offset: "normalize",
+  x: "date", y: "value", fill: "category"
+}))
+```
+
+### Window Transform
+```javascript
+// Rolling average
+Plot.line(data, Plot.windowY({k: 30, reduce: "mean"}, {x: "date", y: "value"}))
+
+// Bollinger bands
+Plot.bollinger(data, {x: "date", y: "close", n: 20, k: 2})
+```
+
+### Select Transform
+```javascript
+// Label only extremes
+Plot.text(data, Plot.selectMaxY({x: "date", y: "value", text: "label"}))
+```
+
+## Reducers for Transforms
+
+| Reducer | Output |
+|---------|--------|
+| `count` | Number of elements |
+| `sum` | Sum of values |
+| `mean` | Arithmetic mean |
+| `median` | Median value |
+| `min` / `max` | Extremes |
+| `deviation` | Standard deviation |
+| `variance` | Variance |
+| `mode` | Most common value |
+| `first` / `last` | First/last value |
+| `proportion` | Fraction of total |
+| `distinct` | Unique values count |
+| Custom function | `(values, index) => result` |
+
+## Scales & Axes
+
+```javascript
+Plot.plot({
+  x: {
+    type: "log",          // linear, log, sqrt, symlog, pow, time, utc, ordinal, band, point
+    domain: [1, 1000],    // Data extent
+    range: [0, width],    // Pixel extent
+    label: "Value (log)", // Axis label
+    tickFormat: "s",      // D3 format specifier
+    grid: true            // Show gridlines
+  },
+  y: {
+    nice: true,           // Round domain to nice values
+    zero: true,           // Include zero
+    reverse: true         // Flip direction
+  },
+  color: {
+    type: "categorical",  // categorical, sequential, diverging, ordinal
+    scheme: "tableau10",  // Color scheme name
+    legend: true          // Show legend
+  },
+  r: {
+    range: [1, 20]        // Radius range for size encoding
+  }
+})
+```
+
+## Color Schemes
+
+**Sequential**: `blues`, `greens`, `greys`, `oranges`, `purples`, `reds`, `viridis`, `magma`, `inferno`, `plasma`, `warm`, `cool`, `turbo`
+
+**Diverging**: `brbg`, `prgn`, `piyg`, `puor`, `rdbu`, `rdgy`, `rdylbu`, `rdylgn`, `spectral`
+
+**Categorical**: `tableau10`, `category10`, `accent`, `dark2`, `paired`, `set1`, `set2`, `set3`
+
+## Projections (for geo marks)
+
+```javascript
+Plot.plot({
+  projection: "albers-usa",  // Or: mercator, equirectangular, orthographic, etc.
+  marks: [
+    Plot.geo(geoData, {fill: "value"})
+  ]
+})
+```
+
+## Sources
+
+- [Observable Plot Documentation](https://observablehq.com/plot/)
+- [Mike Bostock's 10 Years of Open-Source Visualization](https://observablehq.com/@mbostock/10-years-of-open-source-visualization)
+- [Delaunay Marks](https://observablehq.com/plot/marks/delaunay)
+- [Hexbin Transform](https://observablehq.com/plot/transforms/hexbin)
+- [Raster Mark](https://observablehq.com/plot/marks/raster)
+- [Transforms Overview](https://observablehq.com/plot/features/transforms)
