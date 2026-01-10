@@ -681,6 +681,41 @@ const quakes = FileAttachment("quakes.json").json()
 
 Data loaders can be Python, JavaScript, R, or any executable.
 
+### Environment Variables & Secrets
+
+Secrets (API keys, database credentials) should **never** reach the browser. Use data loaders + dotenv:
+
+**Setup:**
+```bash
+cd notebooks && bun add dotenv
+```
+
+**Create `.env`** (already in `.gitignore`):
+```
+API_KEY=sk-xxxxx
+DATABASE_URL=postgres://...
+```
+
+**Data loader** (`src/api-data.json.js`):
+```javascript
+import "dotenv/config";
+
+const res = await fetch("https://api.example.com/data", {
+  headers: { Authorization: `Bearer ${process.env.API_KEY}` }
+});
+
+process.stdout.write(JSON.stringify(await res.json()));
+```
+
+**Notebook** (`src/my-notebook.md`):
+```js
+const data = await FileAttachment("api-data.json").json()
+```
+
+The secret stays on the server; only the fetched data reaches the browser.
+
+**See:** `notebooks/src/env-test.md` for a working example.
+
 ## Verification
 
 Use the `verify` command to auto-discover and screenshot all visualizations:
@@ -929,3 +964,18 @@ const i = (function* () {
   for (let i = 0; true; ++i) yield i;
 })();
 ```
+
+### 7. Code Examples Get Executed
+Only ` ```js ` blocks are executed. Use ` ```javascript ` for non-executable examples:
+````markdown
+**This runs in the browser:**
+```js
+const x = 10;  // Creates variable x
+```
+
+**This is just syntax-highlighted text:**
+```javascript
+const x = 10;  // Display only, not executed
+```
+````
+This matters when showing Node.js code (like data loaders) that uses `process.env` - if you use ` ```js `, it will error because `process` doesn't exist in browsers.

@@ -272,18 +272,18 @@ def cmd_open(args):
     port = resolve_api_port(instance, args.api_port)
     if port is None:
         raise RuntimeError("missing api port after start")
-    res = http_json(api_base(port), "POST", "/open", {"path": str(path)}, timeout_s=60.0)
+    api = api_base(port)
+    res = http_json(api, "POST", "/open", {"path": str(path)}, timeout_s=60.0)
     print(json.dumps(res, indent=2))
 
     if args.wait:
-        idle_res = http_json(
-            api_base(port),
-            "POST",
-            "/wait-idle",
-            {"timeout_ms": args.wait_timeout_ms},
-            timeout_s=max(5.0, args.wait_timeout_ms / 1000.0 + 1.0),
-        )
-        print(json.dumps(idle_res, indent=2))
+        deadline = time.monotonic() + args.wait_timeout_ms / 1000.0
+        url = res.get("url") if isinstance(res, dict) else None
+        if isinstance(url, str) and url:
+            wait_until_url(api, url, deadline)
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        remaining_ms = max(0, remaining_ms)
+        print(json.dumps(wait_until_idle(api, remaining_ms), indent=2))
 
 
 def cmd_show(_args):
@@ -313,20 +313,85 @@ def cmd_reload(_args):
     print(json.dumps(http_json(api_base(port), "POST", "/reload", {}), indent=2))
 
 
+def wait_until_idle(api: str, timeout_ms: int) -> dict:
+    """Wait for idle with retry logic to handle JS context teardown during navigation."""
+    started = time.monotonic()
+    timeout_s = timeout_ms / 1000.0
+    deadline = started + timeout_s
+
+    while True:
+        now = time.monotonic()
+        remaining_ms = int((deadline - now) * 1000)
+        if remaining_ms <= 0:
+            waited_ms = int((now - started) * 1000)
+            return {"ok": True, "result": {"timeout": True, "waited_ms": waited_ms}}
+
+        slice_ms = min(1000, remaining_ms)
+        try:
+            res = http_json(
+                api,
+                "POST",
+                "/wait-idle",
+                {"timeout_ms": slice_ms},
+                timeout_s=max(5.0, slice_ms / 1000.0 + 1.0),
+            )
+        except RuntimeError as e:
+            # If the page is navigating, the JS context can get torn down and we
+            # won't receive a reply. Retry quickly instead of stalling.
+            if "timed out waiting for idle reply" in str(e):
+                time.sleep(0.05)
+                continue
+            raise
+
+        result = res.get("result", {})
+        if isinstance(result, dict) and result.get("timeout") is False:
+            waited_ms = int((time.monotonic() - started) * 1000)
+            return {"ok": True, "result": {"timeout": False, "waited_ms": waited_ms}}
+
+
+def wait_until_url(api: str, expected_url: str, deadline: float) -> dict:
+    """Wait until the page URL matches expected_url."""
+    started = time.monotonic()
+    want = expected_url.rstrip("/")
+
+    while True:
+        now = time.monotonic()
+        remaining_ms = int((deadline - now) * 1000)
+        if remaining_ms <= 0:
+            waited_ms = int((now - started) * 1000)
+            return {"ok": True, "result": {"timeout": True, "waited_ms": waited_ms}}
+
+        slice_ms = min(1000, remaining_ms)
+        try:
+            res = http_json(
+                api,
+                "POST",
+                "/eval",
+                {"code": "return location.href;", "timeout_ms": slice_ms},
+                timeout_s=max(5.0, slice_ms / 1000.0 + 1.0),
+            )
+        except RuntimeError as e:
+            msg = str(e)
+            if "timed out waiting for JS reply" in msg or "JS reply channel closed" in msg:
+                time.sleep(0.05)
+                continue
+            raise
+
+        got = res.get("result") if isinstance(res, dict) else None
+        if isinstance(got, str) and got.rstrip("/") == want:
+            waited_ms = int((time.monotonic() - started) * 1000)
+            return {"ok": True, "result": {"timeout": False, "waited_ms": waited_ms}}
+
+        time.sleep(0.05)
+
+
 def cmd_wait_idle(args):
     ensure_daemon(args)
     instance = safe_instance_name(args.instance)
     port = resolve_api_port(instance, args.api_port)
     if port is None:
         raise RuntimeError("missing api port after start")
-    res = http_json(
-        api_base(port),
-        "POST",
-        "/wait-idle",
-        {"timeout_ms": args.timeout_ms},
-        timeout_s=max(5.0, args.timeout_ms / 1000.0 + 1.0),
-    )
-    print(json.dumps(res, indent=2))
+    print(json.dumps(wait_until_idle(api_base(port), args.timeout_ms), indent=2))
 
 
 def cmd_eval(args):
