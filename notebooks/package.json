@@ -1,0 +1,11 @@
+{
+  "name": "notebook-viewer-notebooks",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@observablehq/framework": "^1.13.0"
+  },
+  "scripts": {
+    "observable": "observable"
+  }
+}

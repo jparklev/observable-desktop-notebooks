@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notebook Viewer</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+      .card {
+        max-width: 720px;
+        padding: 16px 18px;
+        border: 1px solid rgba(127, 127, 127, 0.35);
+        border-radius: 12px;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 style="margin: 0 0 10px 0; font-size: 18px">Notebook Viewer</h1>
+      <p style="margin: 0 0 10px 0; opacity: 0.85">
+        This window will navigate to an Observable Framework preview server when you call
+        <code>POST /open</code>.
+      </p>
+      <p style="margin: 0; opacity: 0.85">
+        API: <code>http://localhost:9847/status</code>
+      </p>
+    </div>
+  </body>
+</html>
+
