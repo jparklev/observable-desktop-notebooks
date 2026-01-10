@@ -57,6 +57,7 @@ pub async fn serve(app_handle: AppHandle) -> Result<()> {
         .route("/wait-idle", post(wait_idle))
         .route("/screenshot", post(screenshot_full))
         .route("/screenshot/element", post(screenshot_element))
+        .route("/verify", post(verify_notebook))
         .route("/_internal/reply", post(internal_reply))
         .route("/_internal/loaded", post(internal_loaded))
         .route("/page-loads", get(page_loads))
@@ -592,7 +593,12 @@ const selector = {selector};
 const el = document.querySelector(selector);
 if (!el) throw new Error("selector not found: " + selector);
 
-el.scrollIntoView({{block: "center", inline: "center"}});
+// Calculate document position and scroll manually (scrollIntoView can overshoot)
+const rect = el.getBoundingClientRect();
+const docTop = window.scrollY + rect.top;
+const targetY = docTop - (window.innerHeight - rect.height) / 2;
+window.scrollTo(0, Math.max(0, targetY));
+
 if (window.__notebook_viewer__?.waitForIdle) {{
   await window.__notebook_viewer__.waitForIdle(1500);
 }}
@@ -625,6 +631,219 @@ return {{
     .await
     .map_err(ApiError)?;
     Ok(Json(serde_json::json!({ "ok": true, "path": path })))
+}
+
+#[derive(Deserialize)]
+struct VerifyRequest {
+    timeout_ms: Option<u64>,
+    screenshot_padding: Option<u32>,
+}
+
+#[derive(Serialize)]
+struct VerifyVisualization {
+    index: usize,
+    #[serde(rename = "type")]
+    viz_type: String,
+    selector: Option<String>,
+    size: [u32; 2],
+    screenshot_path: String,
+    context_text: Option<String>,
+}
+
+#[derive(Serialize)]
+struct VerifyResponse {
+    ok: bool,
+    page_errors: Vec<String>,
+    visualizations: Vec<VerifyVisualization>,
+    inputs: usize,
+    exposed_cells: Vec<String>,
+}
+
+async fn verify_notebook(
+    State(api): State<ApiState>,
+    Json(req): Json<VerifyRequest>,
+) -> Result<impl IntoResponse, ApiError> {
+    let window = api
+        .app
+        .get_webview_window("main")
+        .ok_or_else(|| ApiError(anyhow::anyhow!("missing main window")))?;
+
+    let timeout_ms = req.timeout_ms.unwrap_or(10000);
+    let padding = req.screenshot_padding.unwrap_or(16) as f64;
+
+    // 1. Wait for idle
+    wait_idle_js(&api, &window, timeout_ms).await?;
+
+    // 2. Get console errors
+    let logs = run_js(&api, &window, "return window.__notebook_viewer__?.getLogs?.() ?? [];", JS_TIMEOUT_MS).await?;
+    let page_errors: Vec<String> = logs
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|entry| {
+                    let level = entry.get("level")?.as_str()?;
+                    if level == "error" {
+                        entry.get("message")?.as_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    // 3. Discover visualizations
+    let viz_data = run_js(
+        &api,
+        &window,
+        "return window.__notebook_viewer__?.discoverVisualizations?.() ?? [];",
+        JS_TIMEOUT_MS,
+    )
+    .await?;
+
+    // 4. Count inputs
+    let input_count = run_js(
+        &api,
+        &window,
+        "return document.querySelectorAll('input, select, textarea').length;",
+        JS_TIMEOUT_MS,
+    )
+    .await?
+    .as_u64()
+    .unwrap_or(0) as usize;
+
+    // 5. Get exposed cells
+    let cells = run_js(
+        &api,
+        &window,
+        "return window.__notebook_viewer__?.listCells?.() ?? [];",
+        JS_TIMEOUT_MS,
+    )
+    .await?;
+    let exposed_cells: Vec<String> = cells
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+
+    // 6. Screenshot each visualization (sequential for speed, no duplicate scrolling)
+    let mut visualizations = Vec::new();
+
+    if let Some(viz_arr) = viz_data.as_array() {
+        for viz in viz_arr {
+            let index = viz.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            let viz_type = viz
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let selector = viz.get("selector").and_then(|v| v.as_str()).map(|s| s.to_string());
+            let context_text = viz.get("contextText").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+            let rect = viz.get("rect");
+            let width = rect
+                .and_then(|r| r.get("width"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0) as u32;
+            let height = rect
+                .and_then(|r| r.get("height"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0) as u32;
+
+            // Scroll to element and capture
+            if let Some(ref sel) = selector {
+                let sel_json = serde_json::to_string(sel).map_err(|e| ApiError(e.into()))?;
+                let scroll_code = format!(
+                    r#"
+                    const el = document.querySelector({sel_json});
+                    if (el) {{
+                        // Calculate document position and scroll manually
+                        // (scrollIntoView can overshoot on some pages)
+                        const rect = el.getBoundingClientRect();
+                        const docTop = window.scrollY + rect.top;
+                        const targetY = docTop - (window.innerHeight - rect.height) / 2;
+                        window.scrollTo(0, Math.max(0, targetY));
+                        await new Promise(r => setTimeout(r, 50));
+                        const r = el.getBoundingClientRect();
+                        return {{
+                            rect: {{x: r.x, y: r.y, width: r.width, height: r.height}},
+                            viewport: {{width: window.innerWidth, height: window.innerHeight}}
+                        }};
+                    }}
+                    return null;
+                    "#
+                );
+
+                if let Ok(metrics_val) = run_js(&api, &window, &scroll_code, JS_TIMEOUT_MS).await {
+                    if !metrics_val.is_null() {
+                        #[derive(Deserialize)]
+                        struct Metrics {
+                            rect: Rect,
+                            viewport: Viewport,
+                        }
+                        #[derive(Deserialize)]
+                        struct Rect {
+                            x: f64,
+                            y: f64,
+                            width: f64,
+                            height: f64,
+                        }
+                        #[derive(Deserialize)]
+                        struct Viewport {
+                            width: f64,
+                            height: f64,
+                        }
+
+                        if let Ok(metrics) = serde_json::from_value::<Metrics>(metrics_val) {
+                            if let Ok(path) = screenshot::capture_element(
+                                &window,
+                                screenshot::CssRect {
+                                    x: metrics.rect.x,
+                                    y: metrics.rect.y,
+                                    width: metrics.rect.width,
+                                    height: metrics.rect.height,
+                                },
+                                screenshot::CssViewport {
+                                    width: metrics.viewport.width,
+                                    height: metrics.viewport.height,
+                                },
+                                padding,
+                            )
+                            .await
+                            {
+                                visualizations.push(VerifyVisualization {
+                                    index,
+                                    viz_type,
+                                    selector,
+                                    size: [width, height],
+                                    screenshot_path: path,
+                                    context_text,
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback: no screenshot captured
+            visualizations.push(VerifyVisualization {
+                index,
+                viz_type,
+                selector,
+                size: [width, height],
+                screenshot_path: String::new(),
+                context_text,
+            });
+        }
+    }
+
+    Ok(Json(VerifyResponse {
+        ok: true,
+        page_errors,
+        visualizations,
+        inputs: input_count,
+        exposed_cells,
+    }))
 }
 
 struct ApiError(anyhow::Error);

@@ -278,9 +278,114 @@
     return true;
   };
 
+  /**
+   * Auto-discover visualizations in the page.
+   * Finds SVGs, canvases, and Observable Plot elements that are large enough
+   * to be meaningful charts (not icons). No notebook modifications required.
+   */
+  const discoverVisualizations = () => {
+    const MIN_SIZE = 100;
+    const results = [];
+
+    // Selectors for chart-like elements
+    const selectors = [
+      'svg',
+      'canvas',
+      '.observablehq-plot',
+      '.plot',
+      '[class*="chart"]',
+      '[class*="Chart"]'
+    ];
+
+    const seen = new Set();
+    const allMatches = [];
+
+    // First pass: collect all valid visualizations
+    for (const selector of selectors) {
+      for (const el of document.querySelectorAll(selector)) {
+        if (seen.has(el)) continue;
+
+        const rect = el.getBoundingClientRect();
+        if (rect.width < MIN_SIZE || rect.height < MIN_SIZE) continue;
+        if (rect.width === 0 || rect.height === 0) continue;
+        if (getComputedStyle(el).display === 'none') continue;
+
+        seen.add(el);
+        allMatches.push({ el, rect });
+      }
+    }
+
+    // Sort by document position (top to bottom)
+    allMatches.sort((a, b) => {
+      const aTop = window.scrollY + a.rect.top;
+      const bTop = window.scrollY + b.rect.top;
+      return aTop - bTop;
+    });
+
+    // Second pass: build results with unique selectors
+    // We'll add a temporary data attribute for reliable selection
+    for (const { el, rect } of allMatches) {
+      const tag = el.tagName.toLowerCase();
+      const vizId = `__viz_${results.length}`;
+
+      // Add temporary data attribute for reliable selection
+      el.setAttribute('data-viz-id', vizId);
+
+      let uniqueSelector;
+      if (el.id) {
+        uniqueSelector = `#${el.id}`;
+      } else {
+        uniqueSelector = `[data-viz-id="${vizId}"]`;
+      }
+
+      const contextText = extractContext(el);
+
+      results.push({
+        index: results.length,
+        type: tag,
+        selector: uniqueSelector,
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height
+        },
+        scrollY: window.scrollY + rect.top,
+        contextText
+      });
+    }
+
+    return results;
+  };
+
+  /**
+   * Extract preceding markdown/text context for a visualization.
+   */
+  const extractContext = (el) => {
+    const texts = [];
+    let node = el.previousElementSibling;
+    let count = 0;
+    const MAX_SIBLINGS = 3;
+
+    while (node && count < MAX_SIBLINGS) {
+      // Look for text-heavy elements (paragraphs, headings, lists)
+      if (['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'UL', 'OL', 'BLOCKQUOTE'].includes(node.tagName)) {
+        const text = node.textContent?.trim();
+        if (text && text.length > 10) {
+          texts.unshift(text);
+        }
+      }
+      node = node.previousElementSibling;
+      count++;
+    }
+
+    return texts.join('\n\n') || null;
+  };
+
   window.__notebook_viewer__ = {
     clearLogs,
     clickElement,
+    discoverVisualizations,
     evalAndPost,
     getCellValue,
     getLogs,

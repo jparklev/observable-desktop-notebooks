@@ -255,6 +255,22 @@ def cmd_page_loads(_args):
     print(json.dumps(http_json("GET", "/page-loads"), indent=2))
 
 
+def cmd_verify(args):
+    ensure_daemon()
+    payload = {
+        "timeout_ms": args.timeout_ms,
+        "screenshot_padding": args.padding,
+    }
+    # Use a longer HTTP timeout since verify does multiple screenshots
+    res = http_json(
+        "POST",
+        "/verify",
+        payload,
+        timeout_s=max(30.0, args.timeout_ms / 1000.0 + 10.0),
+    )
+    print(json.dumps(res, indent=2))
+
+
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog="viewer.py")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -307,6 +323,11 @@ def main(argv: list[str]) -> int:
 
     sub.add_parser("notebooks").set_defaults(fn=cmd_notebooks)
     sub.add_parser("page-loads").set_defaults(fn=cmd_page_loads)
+
+    verify_p = sub.add_parser("verify", help="Verify notebook: discover charts, take screenshots, check errors")
+    verify_p.add_argument("--timeout-ms", type=int, default=10000, help="Timeout for waiting for idle")
+    verify_p.add_argument("--padding", type=int, default=16, help="Padding around screenshots")
+    verify_p.set_defaults(fn=cmd_verify)
 
     args = p.parse_args(argv)
     args.fn(args)

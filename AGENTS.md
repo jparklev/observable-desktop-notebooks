@@ -2,6 +2,152 @@
 
 This repo uses **Observable Framework** notebooks (`notebooks/src/*.md`) rendered in a hidden **Tauri** WebView, controlled via a local HTTP API.
 
+## Observable Framework Notebook Syntax
+
+**IMPORTANT**: Observable Framework markdown is NOT the same as Observable notebooks. Key differences:
+
+### Frontmatter
+
+Every notebook needs YAML frontmatter. Use `parchment` as the default theme:
+
+```yaml
+---
+title: My Notebook
+theme: parchment
+---
+```
+
+### Code Blocks
+
+**Simple expressions** (automatic display):
+```js
+Plot.plot({ marks: [Plot.dot(data, {x: "x", y: "y"})] })
+```
+
+**With local variables** (MUST use `display()`):
+```js
+{
+  const processed = data.map(d => d.value * 2);
+  display(Plot.plot({ marks: [Plot.line(processed)] }));
+}
+```
+
+**CRITICAL**: JavaScript block statements `{}` do NOT return values. You MUST call `display()` to render output. Without it, the block produces nothing.
+
+**WRONG** (produces empty output):
+```js
+{
+  const x = 5;
+  Plot.plot({...})  // This is lost!
+}
+```
+
+**CORRECT**:
+```js
+{
+  const x = 5;
+  display(Plot.plot({...}));
+}
+```
+
+### Inputs with `view()`
+
+```js echo
+const value = view(Inputs.range([0, 100], {value: 50, label: "Amount"}))
+```
+
+- `echo` directive shows the code AND renders the input
+- Without `echo`, code executes silently
+
+### No `return` Statements
+
+Code blocks are expressions, not functions. Never use `return` at the block level:
+
+**WRONG**:
+```js
+{
+  const data = [1, 2, 3];
+  return Plot.plot({...});  // SyntaxError!
+}
+```
+
+**CORRECT**:
+```js
+{
+  const data = [1, 2, 3];
+  display(Plot.plot({...}));
+}
+```
+
+Note: `return` IS valid inside nested functions (e.g., `.map(x => { return x * 2; })`).
+
+### Inline Expressions
+
+Use `${...}` for dynamic text:
+```markdown
+Current value: ${value.toFixed(2)}
+```
+
+### LaTeX Math
+
+**IMPORTANT**: Observable Framework does NOT support `$...$` markdown syntax for math. Use `tex` fenced code blocks instead:
+
+**WRONG** (renders as plain text):
+```markdown
+The formula $R_G \approx R_A - \frac{\sigma^2}{2}$ shows...
+```
+
+**CORRECT** (block equation):
+````markdown
+```tex
+R_G \approx R_A - \frac{\sigma^2}{2}
+```
+````
+
+For inline math variables, use italics as a simple alternative:
+```markdown
+where *p* is probability and *q* = 1 - *p*
+```
+
+Or use the `tex` tagged template literal in JavaScript blocks:
+```js
+tex`R_G \approx R_A - \frac{\sigma^2}{2}`
+```
+
+## Verification
+
+Use the `verify` command to auto-discover and screenshot all visualizations:
+
+```bash
+# 1. Open notebook
+./viewer.py open notebooks/src/my-notebook.md --wait
+
+# 2. Run verification (discovers charts, takes screenshots, checks errors)
+./viewer.py verify
+```
+
+This returns:
+- `page_errors`: Any console errors
+- `visualizations`: Array of discovered charts with screenshot paths and context
+- `inputs`: Count of interactive inputs
+- `exposed_cells`: List of values exposed via `bridge.js`
+
+Each visualization includes:
+- `screenshot_path`: Temp file path for sub-agent analysis
+- `context_text`: Preceding markdown explaining what the chart should show
+- `size`: Width/height in pixels
+- `selector`: CSS selector for the element
+
+### Manual Verification
+
+For detailed inspection:
+
+```bash
+./viewer.py logs                    # Check for errors
+./viewer.py cells                   # List exposed values
+./viewer.py screenshot --selector "#chart-id"  # Screenshot specific element
+```
+
 ## Prerequisites
 
 - **Rust** (for building the Tauri app)
@@ -81,6 +227,10 @@ Use `track()` in reactive cells that re-run frequently to avoid unnecessary upda
 # Synchronization
 ./viewer.py wait-idle
 ./viewer.py page-loads                          # Tracks navigation events (not HMR)
+
+# Verification (auto-discovers charts, screenshots, checks errors)
+./viewer.py verify
+./viewer.py verify --timeout-ms 15000           # Longer timeout for heavy notebooks
 
 # Screenshots
 ./viewer.py screenshot

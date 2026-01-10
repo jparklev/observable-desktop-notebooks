@@ -1,0 +1,501 @@
+---
+title: The Edge & The Cliff
+theme: parchment
+---
+
+# The Edge & The Cliff
+## The Mathematics of Position Sizing
+
+*"To win the game, you must first survive it."*
+
+This notebook explores the tension at the heart of capital allocation: how much to bet when you have an edge. Too little and you leave money on the table. Too much and you risk ruin.
+
+We'll cover:
+- **Volatility drag** — how variance erodes compound returns
+- **The Kelly Criterion** — the mathematically optimal bet size
+- **Fractional Kelly** — why practitioners use half or quarter Kelly
+- **Concentrated conviction** — when to size up (Druckenmiller, Sundheim)
+
+The math says one thing. The legends do another. Both are right, depending on what you actually know.
+
+---
+# I. The Geometry of Wealth
+
+The first trap is confusing arithmetic returns with geometric returns.
+
+A 50% loss followed by a 50% gain leaves you with... 75% of your starting capital. The *average* return was 0%, but you lost money.
+
+This asymmetry is called **volatility drag** (or variance drain). It's a direct tax on compound growth.
+
+```js echo
+const avgReturn = view(Inputs.range([0, 0.30], {value: 0.10, step: 0.01, label: "Average Annual Return"}))
+```
+
+```js echo
+const volatility = view(Inputs.range([0, 0.60], {value: 0.20, step: 0.01, label: "Annual Volatility (σ)"}))
+```
+
+**Current settings:** Average return = ${(avgReturn * 100).toFixed(0)}% | Volatility = ${(volatility * 100).toFixed(0)}%
+
+```js
+{
+  const years = 30;
+  const paths = 50;
+  const seed = 42;
+
+  // Simple seeded random for reproducibility
+  function mulberry32(a) {
+    return function() {
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+  }
+  const random = mulberry32(seed);
+
+  // Box-Muller for normal distribution
+  function randn() {
+    const u1 = random();
+    const u2 = random();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+
+  // Arithmetic expectation line
+  const arithmetic = d3.range(years + 1).map(t => ({
+    year: t,
+    value: Math.pow(1 + avgReturn, t),
+    type: "Arithmetic Expectation"
+  }));
+
+  // Geometric expected value (accounting for drag)
+  const geoExpected = avgReturn - (volatility * volatility) / 2;
+  const geometric = d3.range(years + 1).map(t => ({
+    year: t,
+    value: Math.pow(1 + geoExpected, t),
+    type: "Geometric Expectation"
+  }));
+
+  // Monte Carlo paths
+  const allPaths = [];
+  for (let p = 0; p < paths; p++) {
+    let value = 1;
+    for (let t = 0; t <= years; t++) {
+      allPaths.push({year: t, value, path: p});
+      if (t < years) {
+        const drift = avgReturn - (volatility * volatility) / 2;
+        const shock = volatility * randn();
+        value *= Math.exp(drift + shock);
+      }
+    }
+  }
+
+  // Calculate median terminal wealth
+  const terminalValues = allPaths.filter(d => d.year === years).map(d => d.value);
+  const medianTerminal = d3.median(terminalValues);
+
+  display(Plot.plot({
+    title: "Volatility Drag: The Gap Between Hope and Reality",
+    subtitle: `Geometric expectation: ${(geoExpected * 100).toFixed(1)}% | Median terminal: $${medianTerminal.toFixed(2)}`,
+    width: 800,
+    height: 450,
+    y: {type: "log", domain: [0.1, 100], label: "Portfolio Value ($1 start)", grid: true},
+    x: {label: "Years"},
+    color: {legend: true},
+    marks: [
+      Plot.line(allPaths, {x: "year", y: "value", z: "path", stroke: "#666", strokeOpacity: 0.15}),
+      Plot.line(arithmetic, {x: "year", y: "value", stroke: "#4ecdc4", strokeWidth: 3}),
+      Plot.line(geometric, {x: "year", y: "value", stroke: "#ff6b6b", strokeWidth: 3, strokeDasharray: "5,5"}),
+      Plot.text([{x: years, y: arithmetic[years].value}], {x: "x", y: "y", text: ["Arithmetic"], dx: -70, fill: "#4ecdc4", fontWeight: "bold"}),
+      Plot.text([{x: years, y: geometric[years].value}], {x: "x", y: "y", text: ["Geometric"], dx: -65, fill: "#ff6b6b", fontWeight: "bold"})
+    ]
+  }));
+}
+```
+
+The **teal line** shows where you'd be if you earned exactly ${avgReturn * 100}% every single year — no variance.
+
+The **red dashed line** shows the expected geometric growth after accounting for volatility drag:
+
+```tex
+R_G \approx R_A - \frac{\sigma^2}{2}
+```
+
+With ${(volatility * 100).toFixed(0)}% volatility, you lose roughly ${((volatility * volatility) / 2 * 100).toFixed(1)}% per year to drag alone.
+
+The gray paths are 50 simulated trajectories. Notice how most cluster around the geometric expectation, not the arithmetic one.
+
+---
+# II. The Kelly Criterion
+
+In 1956, John Kelly at Bell Labs solved a fundamental problem: *given a known edge, how much should you bet to maximize long-term wealth?*
+
+The answer is elegant:
+
+```tex
+f^* = \frac{bp - q}{b}
+```
+
+Where:
+- *p* = probability of winning
+- *q* = probability of losing (1 - p)
+- *b* = payoff odds (win *b* for every $1 risked)
+
+For a simple win/lose bet with even payoff (*b* = 1):
+
+```tex
+f^* = 2p - 1
+```
+
+Kelly maximizes the *expected logarithm* of wealth — equivalent to maximizing geometric growth rate.
+
+```js echo
+const winProb = view(Inputs.range([0.5, 0.9], {value: 0.6, step: 0.01, label: "Win Probability (p)"}))
+```
+
+```js echo
+const payoffOdds = view(Inputs.range([0.5, 3], {value: 1, step: 0.1, label: "Payoff Odds (b)"}))
+```
+
+**Current settings:** Win probability = ${(winProb * 100).toFixed(0)}% | Payoff odds = ${payoffOdds.toFixed(1)}:1
+
+```js
+{
+  const p = winProb;
+  const q = 1 - p;
+  const b = payoffOdds;
+
+  // Kelly optimal
+  const fStar = (b * p - q) / b;
+
+  // Growth rate function
+  const growthRate = (f) => {
+    if (f <= 0) return 0;
+    if (f >= 1) return -Infinity;
+    return p * Math.log(1 + b * f) + q * Math.log(1 - f);
+  };
+
+  // Generate curve data
+  const data = d3.range(0, 1.01, 0.01).map(f => ({
+    f: f,
+    growth: growthRate(f),
+    zone: f <= fStar ? "optimal" : f <= fStar * 2 ? "inefficient" : "ruin"
+  }));
+
+  const maxGrowth = growthRate(fStar);
+  const halfKelly = fStar / 2;
+  const halfGrowth = growthRate(halfKelly);
+  const doubleKelly = Math.min(fStar * 2, 0.99);
+  const ruinThreshold = doubleKelly;
+
+  display(Plot.plot({
+    title: "The Kelly Curve: Growth Rate vs. Bet Size",
+    subtitle: `Kelly optimal: ${(fStar * 100).toFixed(1)}% | 2x Kelly (ruin threshold): ${(doubleKelly * 100).toFixed(1)}%`,
+    width: 800,
+    height: 400,
+    x: {label: "Bet Size (fraction of bankroll)", domain: [0, 1], tickFormat: ".0%"},
+    y: {label: "Expected Growth Rate per Bet", domain: [-0.15, Math.max(0.15, maxGrowth * 1.3)], tickFormat: ".1%", grid: true},
+    marks: [
+      Plot.areaY(data.filter(d => d.f > ruinThreshold), {x: "f", y: "growth", y1: -0.15, fill: "#ff6b6b", fillOpacity: 0.3}),
+      Plot.areaY(data.filter(d => d.f > fStar && d.f <= ruinThreshold), {x: "f", y: "growth", y1: 0, fill: "#f39c12", fillOpacity: 0.15}),
+      Plot.areaY(data.filter(d => d.f <= fStar), {x: "f", y: "growth", y1: 0, fill: "#4ecdc4", fillOpacity: 0.15}),
+      Plot.line(data, {x: "f", y: "growth", stroke: "#fff", strokeWidth: 2.5}),
+      Plot.ruleY([0], {stroke: "#666", strokeDasharray: "3,3"}),
+      Plot.ruleX([ruinThreshold], {stroke: "#ff6b6b", strokeWidth: 2, strokeDasharray: "4,4"}),
+      Plot.dot([{f: fStar, growth: maxGrowth}], {x: "f", y: "growth", r: 8, fill: "#4ecdc4", stroke: "#fff"}),
+      Plot.text([{f: fStar, growth: maxGrowth}], {x: "f", y: "growth", text: ["Kelly"], dy: -15, fill: "#4ecdc4", fontWeight: "bold"}),
+      Plot.dot([{f: halfKelly, growth: halfGrowth}], {x: "f", y: "growth", r: 6, fill: "#f7dc6f", stroke: "#fff"}),
+      Plot.text([{f: halfKelly, growth: halfGrowth}], {x: "f", y: "growth", text: ["½ Kelly"], dy: -15, fill: "#f7dc6f", fontWeight: "bold"}),
+      Plot.text([{f: Math.min(ruinThreshold + 0.08, 0.92), growth: -0.06}], {x: "f", y: "growth", text: ["RUIN\n(g < 0)"], fill: "#ff6b6b", fontSize: 10, fontWeight: "bold"}),
+      Plot.text([{f: Math.min(fStar * 1.5, ruinThreshold - 0.05), growth: maxGrowth * 0.3}], {x: "f", y: "growth", text: ["Inefficient"], fill: "#f39c12", fontSize: 10})
+    ]
+  }));
+}
+```
+
+**The crucial insight**: The curve is asymmetric, with three zones.
+
+- **Under Kelly** (green): Suboptimal but safe. Half Kelly earns ~75% of max growth.
+- **1-2x Kelly** (orange): Still positive growth, but increasingly volatile and inefficient.
+- **>2x Kelly** (red): **Negative expected growth**. Eventual ruin is mathematically guaranteed.
+
+The cliff at 2x Kelly is the key. Below it, you're leaving money on the table. Above it, you're *losing* money in expectation — no matter how favorable the underlying bet.
+
+This asymmetry is why experienced traders almost never use full Kelly.
+
+---
+# III. Simulating the Edge
+
+Theory is clean. Reality is not. Let's watch Kelly play out over many trials.
+
+Below: 20 simulated traders start with $100, each facing the same favorable odds. They differ only in position sizing strategy.
+
+```js echo
+const simWinProb = view(Inputs.range([0.5, 0.8], {value: 0.55, step: 0.01, label: "Win Probability"}))
+```
+
+```js echo
+const simPayoff = view(Inputs.range([1, 3], {value: 2, step: 0.1, label: "Win Payoff"}))
+```
+
+**Current settings:** Win probability = ${(simWinProb * 100).toFixed(0)}% | Payoff = ${simPayoff.toFixed(1)}x
+
+```js
+{
+  const p = simWinProb;
+  const b = simPayoff;
+  const trials = 200;
+  const pathsPerStrategy = 20;
+
+  const fStar = (b * p - (1 - p)) / b;
+
+  const strategies = [
+    {name: "Conservative (10%)", f: 0.1, color: "#95a5a6"},
+    {name: "Half Kelly", f: fStar / 2, color: "#f7dc6f"},
+    {name: "Full Kelly", f: fStar, color: "#4ecdc4"},
+    {name: "2.5x Kelly (Ruin)", f: fStar * 2.5, color: "#ff6b6b"}
+  ];
+
+  // Seeded random
+  function mulberry32(a) {
+    return function() {
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+  }
+
+  const allData = [];
+  let seed = 12345;
+
+  for (const strat of strategies) {
+    for (let pathIdx = 0; pathIdx < pathsPerStrategy; pathIdx++) {
+      const random = mulberry32(seed++);
+      let value = 100;
+
+      for (let t = 0; t <= trials; t++) {
+        allData.push({
+          trial: t,
+          value: Math.max(value, 0.01),
+          strategy: strat.name,
+          path: `${strat.name}-${pathIdx}`,
+          color: strat.color
+        });
+
+        if (t < trials && value > 0.01) {
+          const win = random() < p;
+          const betSize = Math.min(strat.f, 0.99);
+          if (win) {
+            value *= (1 + b * betSize);
+          } else {
+            value *= (1 - betSize);
+          }
+        }
+      }
+    }
+  }
+
+  // Calculate median terminal values
+  const medians = strategies.map(s => {
+    const terminals = allData.filter(d => d.trial === trials && d.strategy === s.name).map(d => d.value);
+    return {strategy: s.name, median: d3.median(terminals), color: s.color};
+  });
+
+  display(Plot.plot({
+    title: "Monte Carlo: 200 Bets with Different Sizing Strategies",
+    subtitle: `Kelly optimal = ${(fStar * 100).toFixed(1)}% | Medians: ${medians.map(m => `${m.strategy.split(" ")[0]}: $${m.median.toFixed(0)}`).join(" | ")}`,
+    width: 800,
+    height: 500,
+    x: {label: "Bet Number"},
+    y: {type: "log", domain: [0.1, 100000], label: "Portfolio Value ($)", grid: true},
+    color: {legend: true, domain: strategies.map(s => s.name), range: strategies.map(s => s.color)},
+    marks: [
+      Plot.line(allData, {x: "trial", y: "value", z: "path", stroke: "strategy", strokeOpacity: 0.3, strokeWidth: 1}),
+      Plot.ruleY([100], {stroke: "#666", strokeDasharray: "3,3"})
+    ]
+  }));
+}
+```
+
+Watch what happens:
+
+- **Gray (Conservative)**: Slow and steady. Never blows up, but leaves a lot on the table.
+- **Yellow (Half Kelly)**: The Goldilocks zone. Strong growth with manageable drawdowns.
+- **Teal (Full Kelly)**: Highest median outcome, but wild swings. Some paths look terrifying.
+- **Red (2.5x Kelly)**: Negative expected growth. Eventually, every path trends toward zero.
+
+The key threshold is **2x Kelly**. Below it, you're just inefficient. Above it, you have *negative* expected geometric growth — eventual ruin is mathematically guaranteed.
+
+---
+# IV. Fractional Kelly: Accounting for Ignorance
+
+The Kelly formula assumes you *know* your exact edge. In reality:
+
+- Our probability estimates are noisy
+- Market conditions change
+- Black swans exist
+
+**Fractional Kelly** is a margin of safety against our own overconfidence.
+
+| Fraction | Growth vs Full | Risk Reduction |
+|----------|---------------|----------------|
+| 100% Kelly | 100% | Baseline |
+| 50% Kelly | ~75% | 50% lower variance |
+| 25% Kelly | ~50% | 75% lower variance |
+
+Most professional traders use **half Kelly or less**. The sacrifice in growth is modest; the reduction in drawdown risk is substantial.
+
+### The Real Killer: Estimation Error
+
+Here's the deeper problem: **if you mis-estimate your edge, Full Kelly for your *estimated* edge might exceed 2x Kelly for your *true* edge**.
+
+Example: You estimate $p = 0.60$, so Kelly says bet 20%. But reality is $p = 0.52$. True Kelly is only 4%. Your "optimal" 20% bet is actually **5x** the true Kelly — deep in ruin territory.
+
+Half Kelly isn't just about emotional comfort. It's a buffer against the systematic overconfidence that comes from never knowing your true edge.
+
+```js
+{
+  const p = winProb;
+  const b = payoffOdds;
+  const fStar = (b * p - (1 - p)) / b;
+
+  const growthRate = (f) => p * Math.log(1 + b * f) + (1 - p) * Math.log(1 - f);
+  const maxGrowth = growthRate(fStar);
+
+  const fractions = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5];
+  const data = fractions.map(frac => ({
+    fraction: frac,
+    betSize: fStar * frac,
+    growth: growthRate(fStar * frac),
+    growthPct: growthRate(fStar * frac) / maxGrowth * 100,
+    label: `${(frac * 100).toFixed(0)}%`
+  }));
+
+  display(Plot.plot({
+    title: "Growth Efficiency at Different Kelly Fractions",
+    subtitle: `Based on p=${(p*100).toFixed(0)}%, b=${b.toFixed(1)} | Full Kelly = ${(fStar*100).toFixed(1)}%`,
+    width: 700,
+    height: 350,
+    x: {label: "Kelly Fraction", tickFormat: ".0%", domain: [0, 1.75]},
+    y: {label: "% of Maximum Growth", domain: [0, 110], grid: true},
+    marks: [
+      Plot.barY(data.filter(d => d.fraction <= 1), {x: "fraction", y: "growthPct", fill: "#4ecdc4", dx: -15, insetRight: 25}),
+      Plot.barY(data.filter(d => d.fraction > 1), {x: "fraction", y: d => Math.max(0, d.growthPct), fill: "#ff6b6b", dx: -15, insetRight: 25}),
+      Plot.ruleY([100], {stroke: "#f7dc6f", strokeWidth: 2, strokeDasharray: "5,5"}),
+      Plot.text(data, {x: "fraction", y: "growthPct", text: d => d.growthPct > 0 ? `${d.growthPct.toFixed(0)}%` : "RUIN", dy: -10, fill: "#fff"})
+    ]
+  }));
+}
+```
+
+---
+# V. The Art of Conviction
+
+Everything above assumes you *don't really know* — that your edge is probabilistic and uncertain.
+
+But what if you *do* know?
+
+## Druckenmiller's Philosophy
+
+> "I've learned many things from [Soros], but perhaps the most significant is that it's not whether you're right or wrong that's important, but **how much money you make when you're right** and how much you lose when you're wrong."
+
+> "When you have tremendous conviction on a trade, you have to go for the jugular."
+
+Druckenmiller famously sized into his highest-conviction bets massively — sometimes 100%+ of the fund. The logic:
+- If you've done the work and the setup is clear, diversification is a hedge against *ignorance*
+- When the trade thesis is playing out, *add* to winners rather than trim
+
+**Crucially**: Druckenmiller often achieved concentration through **asymmetric structures** — options, limited downside positions where he might risk 1-2% of NAV but could make 50%. This convexity allows concentration without the linear ruin risk of Kelly betting. He's not betting 100% of the fund linearly; he's betting 100% of the *risk budget* on positions with capped losses.
+
+## Dan Sundheim (D1 Capital)
+
+Sundheim's approach at D1: **deep research to justify concentration**.
+
+The argument: Your 20th best idea is probably a detractor. If your best 5 ideas each have 60% expected return and your 15th-20th ideas have 15% expected return, diluting into those positions *lowers* expected portfolio return.
+
+Concentration is rational *if*:
+1. Your edge is genuinely large (not estimated, but *known*)
+2. You have superior information or analysis
+3. You can survive being wrong
+
+## The Synthesis
+
+| Your Edge | Optimal Approach |
+|-----------|------------------|
+| Unknown / Statistical | Fractional Kelly, diversify |
+| Strong conviction, reversible | Size up, Half Kelly+ |
+| Extreme conviction, asymmetric | Concentrate, full position |
+
+The math and the legends aren't contradicting each other. They're operating in different regimes of certainty.
+
+```js
+{
+  const data = [
+    {certainty: "Statistical Edge", sizing: "Quarter Kelly", examples: "Card counting, systematic trading", risk: "Low", color: "#95a5a6"},
+    {certainty: "Analytical Edge", sizing: "Half Kelly", examples: "Value investing, merger arb", risk: "Medium", color: "#f7dc6f"},
+    {certainty: "Informational Edge", sizing: "Full Kelly", examples: "Deep research, sector expertise", risk: "Higher", color: "#4ecdc4"},
+    {certainty: "Extreme Conviction", sizing: "Concentrated", examples: "Druckenmiller, Soros", risk: "Highest", color: "#ff6b6b"}
+  ];
+
+  display(htl.html`<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0;">
+    ${data.map(d => htl.html`
+      <div style="background: ${d.color}22; border-left: 4px solid ${d.color}; padding: 16px; border-radius: 4px;">
+        <div style="font-weight: bold; color: ${d.color}; margin-bottom: 8px;">${d.certainty}</div>
+        <div style="font-size: 1.2em; margin-bottom: 8px;">${d.sizing}</div>
+        <div style="font-size: 0.85em; opacity: 0.8;">${d.examples}</div>
+      </div>
+    `)}
+  </div>`);
+}
+```
+
+---
+# Conclusion: Know What You Don't Know
+
+The Kelly Criterion is mathematically optimal. But it assumes:
+- You know your exact edge
+- You can survive the drawdowns
+- You have infinite time
+
+In practice:
+
+1. **Use fractional Kelly** (50% or less) unless you have exceptional certainty
+2. **Volatility drag is real** — variance costs compound returns
+3. **Overbetting is terminal** — there's no recovery from the cliff
+4. **Conviction sizing is earned** — Druckenmiller's style requires Druckenmiller's preparation
+5. **Diversification protects ignorance** — concentrate only when ignorance is genuinely removed
+
+The edge gets you in the game. Position sizing determines if you stay in it.
+
+---
+
+## Further Reading
+
+- Kelly, J.L. (1956). "A New Interpretation of Information Rate"
+- Thorp, E.O. (2006). "The Kelly Criterion in Blackjack, Sports Betting and the Stock Market"
+- Druckenmiller interviews on position sizing
+- Ralph Vince, "The Leverage Space Trading Model"
+
+---
+
+```js
+import { expose } from "./bridge.js";
+
+// Expose key values for API access
+const kellyOptimal = (payoffOdds * winProb - (1 - winProb)) / payoffOdds;
+const volatilityDrag = (volatility * volatility) / 2;
+const geometricReturn = avgReturn - volatilityDrag;
+
+expose({
+  avgReturn,
+  volatility,
+  volatilityDrag,
+  geometricReturn,
+  winProb,
+  payoffOdds,
+  kellyOptimal,
+  simWinProb,
+  simPayoff
+});
+```

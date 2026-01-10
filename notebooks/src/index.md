@@ -1,6 +1,6 @@
 ---
 title: Notebook Viewer Demo
-theme: air
+theme: parchment
 ---
 
 <style>
