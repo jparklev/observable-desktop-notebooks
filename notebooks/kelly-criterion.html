@@ -120,7 +120,7 @@
 
     The **red dashed line** shows the expected geometric growth after accounting for volatility drag:
 
-    $$R_G \approx R_A - \frac{\sigma^2}{2}$$
+    ${tex.block`R_G \approx R_A - \frac{\sigma^2}{2}`}
 
     With ${(volatility * 100).toFixed(0)}% volatility, you lose roughly ${((volatility * volatility) / 2 * 100).toFixed(1)}% per year to drag alone.
 
@@ -134,16 +134,16 @@
 
     The answer is elegant:
 
-    $$f^* = \frac{bp - q}{b}$$
+    ${tex.block`f^* = \frac{bp - q}{b}`}
 
     Where:
-    - $p$ = probability of winning
-    - $q$ = probability of losing (1 - p)
-    - $b$ = payoff odds (win $b for every $1 risked)
+    - ${tex`p`} = probability of winning
+    - ${tex`q`} = probability of losing (1 - p)
+    - ${tex`b`} = payoff odds (win ${tex`b`} for every $1 risked)
 
-    For a simple win/lose bet with even payoff ($b = 1$):
+    For a simple win/lose bet with even payoff (${tex`b = 1`}):
 
-    $$f^* = 2p - 1$$
+    ${tex.block`f^* = 2p - 1`}
 
     Kelly maximizes the *expected logarithm* of wealth — equivalent to maximizing geometric growth rate.
   </script>

@@ -1,20 +1,34 @@
 # Observable Desktop Integration for Claude Code
 
-> **CRITICAL: Always Use Gemini for Ideation and Review**
+> **CRITICAL: Always Use Gemini for Ideation, Review, and Visual QA**
 >
 > Before building a notebook, use **Gemini CLI (`gemini-3-pro-preview`)** to:
 > 1. **Ideate** — Outline the narrative arc, sections, and key visualizations
 > 2. **Review** — After building, pipe the notebook to Gemini for critical review of mathematical accuracy, conceptual clarity, and missing nuances
+> 3. **Visual QA** — After capturing chart screenshots, have Gemini review them for beauty, clarity, and data effectiveness
 >
-> Gemini excels at catching errors (like confusing 1.5x Kelly for ruin when the threshold is actually 2x) and suggesting improvements. Always have Gemini in the loop.
+> Gemini excels at catching errors and suggesting improvements. Always have Gemini in the loop.
 >
 > ```bash
 > # Ideation
 > gemini -m gemini-3-pro-preview "Design a notebook on [topic]. Outline sections, visualizations, key formulas..."
 >
-> # Review
+> # Review notebook content
 > cat notebooks/my-notebook.html | gemini -m gemini-3-pro-preview "Review this notebook for mathematical accuracy, conceptual clarity, and missing nuances. Be critical."
+>
+> # Visual QA for charts (after capture-cell)
+> cp /tmp/chart-screenshot.png ./chart.png
+> gemini -m gemini-3-pro-preview "Review chart.png: Is this visualization beautiful, functional, and does it convey the data effectively? Critique color choices, labeling, chart type selection, and overall clarity."
+> rm ./chart.png
 > ```
+>
+> **Visual QA Checklist for Charts:**
+> - Is the chart type appropriate for the data relationship being shown?
+> - Are colors accessible and semantically meaningful?
+> - Is labeling clear and sufficient (axis labels, legends, titles)?
+> - Does the visual hierarchy guide the eye correctly?
+> - Are there any chartjunk or unnecessary decorations?
+> - Would a different visualization type tell the story better?
 
 > **CRITICAL: Silent Operation Required**
 >
@@ -232,6 +246,39 @@ These are available automatically in `application/vnd.observable.javascript` cel
 | JSX / React | ❌ Framework-only | Use `htl.html` templates |
 | Data loaders | ❌ Build-time feature | Use runtime `fetch()` |
 | Global `sql` tag | ❌ Not defined | Use `db.sql` or `db.query()` instead |
+| Raw `$$...$$` LaTeX | ❌ Not parsed | Use `tex` template literal |
+
+## LaTeX / Math in Markdown
+
+Observable Desktop does NOT support raw `$$...$$` LaTeX syntax. Use the `tex` template literal instead:
+
+```html
+<!-- WRONG: Raw LaTeX won't render -->
+<script type="text/markdown">
+The formula is $$f^* = \frac{bp - q}{b}$$
+</script>
+
+<!-- CORRECT: Use tex template literal -->
+<script type="text/markdown">
+The formula is ${tex.block`f^* = \frac{bp - q}{b}`}
+</script>
+```
+
+### Math Syntax
+
+| Type | Syntax | Example |
+|------|--------|---------|
+| Inline math | `${tex\`...\`}` | `The variable ${tex\`x\`} represents...` |
+| Block math | `${tex.block\`...\`}` | `${tex.block\`E = mc^2\`}` |
+| Aligned equations | `tex.block` with `\begin{aligned}` | See below |
+
+```javascript
+// Aligned equations
+${tex.block`\begin{aligned}
+f^* &= \frac{bp - q}{b} \\
+    &= p - \frac{q}{b}
+\end{aligned}`}
+```
 
 ## SQL with DuckDB
 
@@ -429,21 +476,30 @@ viewof price = Inputs.range([0, 1000], {
 
 ### Slider Value Display Issue
 
-The number input boxes next to sliders can appear blank in Observable Desktop, making it hard for users to see the current value. **Always pair sliders with a markdown cell that displays the current value reactively.**
+The number input boxes next to sliders can appear blank in Observable Desktop. This happens because the `format` function returns strings like `"10%"` or `"$100"` which fail HTML input validation (inputs expect valid floating-point numbers).
+
+**Root cause:** When `format` returns a non-numeric string, the browser's input validation fails silently, leaving the input box blank.
+
+**Workaround:** Always pair sliders with a markdown cell that displays the current value reactively:
 
 ```html
 <!-- Slider input -->
 <script type="application/vnd.observable.javascript" pinned>
-viewof rate = Inputs.range([0, 0.30], {value: 0.10, step: 0.01, label: "Return Rate"})
+viewof rate = Inputs.range([0, 0.30], {value: 0.10, step: 0.01, label: "Return Rate", format: x => (x * 100).toFixed(0) + "%"})
 </script>
 
-<!-- Display current value below -->
+<!-- Display current value below (this always works) -->
 <script type="text/markdown">
 **Current settings:** Return = ${(rate * 100).toFixed(0)}%
 </script>
 ```
 
-This ensures users can always see the exact slider values, especially when inputs are pinned and the code is visible but the rendered value isn't.
+**Alternative:** If you don't need formatted display, omit `format` and the number input will work:
+
+```javascript
+// Number input shows "0.10" (works)
+viewof rate = Inputs.range([0, 0.30], {value: 0.10, step: 0.01, label: "Return Rate"})
+```
 
 ## Generators for Dynamic Values
 
@@ -493,7 +549,7 @@ The current value is **${value}** and the sum is **${d3.sum(data)}**.
 
 # Observable Plot Reference
 
-Plot uses composable marks, not chart types. Combine primitives to build visualizations.
+> **Philosophy**: Plot uses composable marks, not chart types. You don't request a "histogram"—you request a `rect` mark with a `bin` transform. This grammar-of-graphics approach enables creative combinations.
 
 ## Basic Structure
 
@@ -511,34 +567,108 @@ Plot.plot({
 })
 ```
 
-## Common Marks
+## Mark Types (The Building Blocks)
 
-| Mark | Purpose |
-|------|---------|
-| `dot` | Scatter plots |
-| `line` | Line charts |
-| `areaY` | Area charts |
-| `barY` / `barX` | Bar charts |
-| `cell` | Heatmaps |
-| `text` | Labels |
-| `rule` | Reference lines |
-| `tip` | Tooltips |
+### Basic Marks
 
-## Transforms
+| Mark | Purpose | Key Options |
+|------|---------|-------------|
+| `Plot.dot` | Scatter plots, dot plots | `r` (size), `fill`, `symbol` |
+| `Plot.line` | Time series, trends | `z` (group multiple lines) |
+| `Plot.barY` / `barX` | Bar charts (categorical or binned) | `fill`, `sort` |
+| `Plot.areaY` / `areaX` | Area charts, stacked areas, streamgraphs | `fill`, `offset: "normalize"` |
+| `Plot.rect` / `cell` | Heatmaps, calendars, matrices | `fill` (color by value) |
+| `Plot.ruleY` / `ruleX` | Reference lines, zero lines | `stroke`, `strokeDasharray` |
+| `Plot.text` | Labels, annotations | `text`, `dx`, `dy` |
+| `Plot.tickY` / `tickX` | Strip plots, rug plots (1D distributions) | — |
+
+### Statistical & Complex Marks
+
+| Mark | Purpose | Example Use |
+|------|---------|-------------|
+| `Plot.boxY` / `boxX` | Box-and-whisker plots | Distribution comparison |
+| `Plot.vector` | Wind maps, flow fields | Magnitude + direction |
+| `Plot.arrow` | Directed edges, annotations | Pointing to data |
+| `Plot.link` | Network edges, tree branches | Connecting two points |
+| `Plot.geo` | Geographic shapes (GeoJSON) | Maps with projections |
+| `Plot.density` | 2D kernel density estimation | Contours or heatmaps |
+| `Plot.linearRegressionY` | Automatic trend line | Correlation analysis |
+
+## Transforms (Data Processing)
 
 ```javascript
-// Histogram
+// Histogram (binning)
 Plot.rectY(data, Plot.binX({y: "count"}, {x: "value"}))
 
 // Grouped bars
 Plot.barY(data, Plot.groupX({y: "sum"}, {x: "category", y: "amount"}))
 
-// Stacked area
+// Stacked area (absolute)
 Plot.areaY(data, Plot.stackY({x: "date", y: "value", fill: "series"}))
 
-// Rolling average
-Plot.line(data, Plot.windowY({k: 30, reduce: "mean"}, {x: "date", y: "value"}))
+// Stacked area (normalized to 100%)
+Plot.areaY(data, Plot.stackY({offset: "normalize"}, {x: "date", y: "value", fill: "series"}))
+
+// Rolling average (smoothing)
+Plot.line(data, Plot.windowY({k: 7, reduce: "mean"}, {x: "date", y: "value"}))
 ```
+
+## Faceting (Small Multiples)
+
+Split charts by category—often clearer than color-coding:
+
+```javascript
+Plot.plot({
+  fx: "department",     // Split horizontally (columns)
+  fy: "region",         // Split vertically (rows)
+  marks: [Plot.barY(data, {x: "year", y: "revenue"})]
+})
+```
+
+## Design Patterns (Recipe Book)
+
+### Comparing Distributions
+
+| Goal | Approach |
+|------|----------|
+| Summary stats | `Plot.boxY(data, {x: "category", y: "value"})` |
+| Shape of data | Violin: `Plot.areaX` with `binY` |
+| Raw data points | Strip plot: `Plot.tickY(data, {x: "category", y: "value"})` |
+
+### Change Over Time
+
+| Goal | Approach |
+|------|----------|
+| Single series | `Plot.lineY(data, {x: "date", y: "value"})` |
+| Multiple series | Add `stroke: "series"` or use `fy` faceting |
+| Rank changes | Slope chart: line with only two x-points |
+| Area between | Difference chart: two areas clipped to show A > B |
+
+### Part-to-Whole
+
+| Goal | Approach |
+|------|----------|
+| Absolute values | Stacked bar: `Plot.barY` with `fill` |
+| Percentage share | Add `offset: "normalize"` to stack |
+| Treemap | Use `d3-hierarchy` + `Plot.rect` |
+
+### Correlation / Relationships
+
+```javascript
+Plot.plot({
+  marks: [
+    Plot.dot(data, {x: "horsepower", y: "mpg"}),
+    Plot.linearRegressionY(data, {x: "horsepower", y: "mpg", stroke: "red"})
+  ]
+})
+```
+
+### Uncertainty
+
+| Goal | Approach |
+|------|----------|
+| Error bars | Overlay `Plot.ruleY` with y1/y2 |
+| Confidence band | `Plot.areaY` with `fillOpacity: 0.2` behind trend |
 
 ## Scales
 
@@ -552,15 +682,6 @@ color: {scheme: "tableau10", legend: true}
 - Sequential: `blues`, `viridis`, `turbo`
 - Diverging: `rdbu`, `spectral`
 - Categorical: `tableau10`, `category10`
-
-## Input Widgets
-
-```javascript
-viewof myValue = Inputs.range([0, 100], {value: 50, label: "Value"})
-viewof selection = Inputs.select(["A", "B", "C"], {label: "Choose"})
-```
-
-Reference the value reactively: `result = myValue * 2`
 
 ## File Attachments
 
@@ -576,10 +697,41 @@ img = await FileAttachment("image.png").image({width: 400})
 
 > "The purpose of visualization is insight, not pictures."
 
-Key principles:
+### Key Principles
+
 1. **Data work dominates** - Preparation is 80% of the effort
 2. **Test forms against actual data** - Low-friction experimentation
-3. **Technical features have hidden costs** - Static visualizations first; flourishes should serve exploration, not replace clarity
+3. **Static first** - Flourishes should serve exploration, not replace clarity
 4. **Teaching drives impact** - Examples inspire and demonstrate
 
+### Style Guidelines (from Bostock's notebooks)
+
+- **Small multiples over cramped legends** - 10 small charts beats 10 lines on one
+- **Direct labeling** - Put text labels on lines/bars instead of legends when possible
+- **Thin strokes** - Use thin lines and white borders to separate overlapping elements
+- **Purposeful animation** - Animate only when it reveals patterns (like bar chart races)
+
 > "D3 is something you learn progressively when it's useful. Because it's so low-level, I worry about effort expended on technical aspects that don't directly contribute to understanding."
+
+### Exemplary Notebooks (for inspiration)
+
+| Notebook | Technique |
+|----------|-----------|
+| Bar Chart Race | Animated bars with rank changes over time |
+| Wealth & Health of Nations | Bubble chart with time scrubber (Hans Rosling style) |
+| World History Timeline | Dense Gantt-style lifespans |
+| Ridgeline Plot | Overlapping `areaY` with `fy` faceting |
+| Walmarts Over Time | Geographic animation with `geo` + `dot` |
+
+### Chart Selection Heuristic
+
+| Data Relationship | First Try | Alternative |
+|-------------------|-----------|-------------|
+| Change over time | Line | Area, slope chart |
+| Part of whole | Stacked bar | Treemap, normalized stack |
+| Distribution | Histogram | Box plot, violin, strip |
+| Correlation | Scatter | Scatter + regression |
+| Comparison | Grouped bar | Small multiples |
+| Geographic | Choropleth | Dot map, cartogram |
+| Hierarchy | Tree | Treemap, sunburst |
+| Network | Force-directed | Arc diagram, adjacency |
