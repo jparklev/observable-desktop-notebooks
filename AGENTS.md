@@ -4,12 +4,17 @@ This repo uses **Observable Framework** notebooks (`notebooks/src/*.md`) rendere
 
 ## Quick Access
 
-Browse all notebooks:
+**From Desktop** (double-click to open):
+```bash
+./sync-desktop.py    # Generate/update launchers in ~/Desktop/Notebooks/
+```
+
+This creates `.app` launchers for each notebook. Double-click any app to open that notebook in the viewer.
+
+**From CLI**:
 ```bash
 ./viewer.py browse   # Opens catalog and shows window
 ```
-
-Desktop shortcut: `~/Desktop/Notebooks` → `notebooks/src/`
 
 ## Notebook Organization
 
@@ -198,22 +203,9 @@ Once functional and beautiful:
 
 Collect user feedback and iterate if needed.
 
-**Add to catalog** - Update `notebooks/src/index.md` with a link and description:
+**Add to catalog** - Update `notebooks/src/index.md` with a link and description.
 
-```markdown
-## [Category]
-
-<div class="card">
-
-### [Notebook Title](/notebook-slug)
-**Subtitle or tagline**
-
-Brief description of what the notebook teaches or explores.
-
-</div>
-```
-
-The catalog is the landing page for `./viewer.py browse` - keep it organized by topic.
+**Sync desktop launchers** - Run `./sync-desktop.py` to update `~/Desktop/Notebooks/`.
 
 ### Workflow Summary
 
@@ -240,7 +232,7 @@ The catalog is the landing page for `./viewer.py browse` - keep it organized by 
 ├─────────────────────────────────────────────────────────────┤
 │  PRESENT          ./viewer.py show                          │
 │                   User review                               │
-│                   Add to index.md catalog                   │
+│                   Add to index.md, run ./sync-desktop.py    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
