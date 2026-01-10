@@ -1,0 +1,25 @@
+---
+url: "https://observablehq.com/@observablehq/plot-psr-b1919-21"
+title: "PSR B1919+21"
+---
+
+# PSR B1919+21
+
+Data: [Borgar Þorsteinsson](https://bl.ocks.org/borgar/31c1e476b8e92a11d7e9), [Michael Zöllner](http://i.document.m05.de/2013/05/23/joy-divisions-unknown-pleasures-printed-in-3d/)
+
+```js
+chart = Plot.plot({
+  height: 760,
+  marginTop: 30,
+  width,
+  axis: null,
+  x: {axis: "bottom", label: "Time (ms) →"},
+  y: {domain: [0, d3.max(pulsar, ([, y]) => y) / 16]},
+  marks: [Plot.lineY(pulsar, {x: "0", y: "1", fy: "2", fill: "white", stroke: "currentColor", strokeWidth: 1})]
+})
+```
+
+```js
+pulsar = (await FileAttachment("pulsar.csv").csv({typed: true, array: true}))
+  .flatMap((Y, z) => Y.map((y, x) => [x * 92 / 299, y, z]))
+```

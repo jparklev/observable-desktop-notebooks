@@ -1,0 +1,17 @@
+---
+url: "https://observablehq.com/@observablehq/plot-density-faceted"
+title: "Density, faceted"
+---
+
+# Density, faceted
+
+The [density](https://observablehq.com/plot/marks/density) mark uses the same thresholds across [facets](https://observablehq.com/plot/features/facets), ensuring comparability.
+
+```js
+Plot.plot({
+  marks: [
+    Plot.density(penguins, {fx: "island", x: "flipper_length_mm", y: "culmen_length_mm", stroke: "density", clip: true}),
+    Plot.frame()
+  ]
+})
+```

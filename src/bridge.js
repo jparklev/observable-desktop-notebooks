@@ -7,8 +7,9 @@
 
   // Notify the API that the page has loaded
   const notifyLoaded = async () => {
+    const port = window.__notebook_viewer_api_port__ ?? 9847;
     try {
-      await fetch("http://127.0.0.1:9847/_internal/loaded", {
+      await fetch(`http://127.0.0.1:${port}/_internal/loaded`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
@@ -148,8 +149,10 @@
     await waitBody();
 
     let lastMutation = performance.now();
+    let sawMutation = false;
     const observer = new MutationObserver(() => {
       lastMutation = performance.now();
+      sawMutation = true;
     });
 
     observer.observe(document.body, {
@@ -164,9 +167,15 @@
         const now = performance.now();
         const waitedMs = Math.round(now - started);
         const computeIdle = computeDepth === 0 && now - lastCompute >= 200;
+        const contentReady =
+          document.querySelector(".observablehq--block") !== null || sawMutation;
         if (waitedMs >= timeoutMs) {
           observer.disconnect();
           resolve({ waited_ms: waitedMs, timeout: true });
+          return;
+        }
+        if (!contentReady) {
+          setTimeout(tick, 16);
           return;
         }
         if (computeIdle && now - lastMutation >= 200) {
@@ -284,8 +293,15 @@
    * to be meaningful charts (not icons). No notebook modifications required.
    */
   const discoverVisualizations = () => {
+    // Clear previous ids so selectors remain unique across repeated runs.
+    for (const el of document.querySelectorAll('[data-viz-id^="__viz_"]')) {
+      el.removeAttribute("data-viz-id");
+    }
+
     const MIN_SIZE = 100;
     const results = [];
+
+    const inContentBlock = (el) => el && Boolean(el.closest(".observablehq--block"));
 
     // Selectors for chart-like elements
     const selectors = [
@@ -300,10 +316,32 @@
     const seen = new Set();
     const allMatches = [];
 
+    const hasExtraOutsideSurface = (wrapper) => {
+      for (const child of wrapper.children || []) {
+        const tag = child.tagName?.toLowerCase();
+        if (!tag) continue;
+        if (tag === "svg" || tag === "canvas" || tag === "script" || tag === "style") continue;
+        const style = getComputedStyle(child);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+
+        const r = child.getBoundingClientRect();
+        if (r.width < 10 || r.height < 10) continue;
+
+        const text = child.textContent?.trim();
+        if (text && text.length) return true;
+        if (child.matches?.("input, select, textarea, button")) return true;
+        if (child.getAttribute?.("aria-label") || child.getAttribute?.("title")) return true;
+        if (child.querySelector?.("input, select, textarea, button")) return true;
+      }
+      return false;
+    };
+
     // First pass: collect all valid visualizations
     for (const selector of selectors) {
       for (const el of document.querySelectorAll(selector)) {
         if (seen.has(el)) continue;
+        if (!inContentBlock(el)) continue;
+        if (el.closest("nav, header, footer")) continue;
 
         const rect = el.getBoundingClientRect();
         if (rect.width < MIN_SIZE || rect.height < MIN_SIZE) continue;
@@ -322,10 +360,46 @@
       return aTop - bTop;
     });
 
+    // If a wrapper includes extra info (legend/caption/etc), prefer capturing
+    // the wrapper and skip the inner render surface to avoid duplicates.
+    const skip = new Set();
+    for (const { el, rect } of allMatches) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === "svg" || tag === "canvas") continue;
+      const surface = el.querySelector("svg, canvas");
+      if (!surface) continue;
+      if (!hasExtraOutsideSurface(el)) continue;
+
+      for (const s of el.querySelectorAll("svg, canvas")) {
+        const sr = s.getBoundingClientRect();
+        if (sr.width >= rect.width * 0.7 && sr.height >= rect.height * 0.7) {
+          skip.add(s);
+        }
+      }
+    }
+
     // Second pass: build results with unique selectors
     // We'll add a temporary data attribute for reliable selection
     for (const { el, rect } of allMatches) {
+      if (skip.has(el)) continue;
       const tag = el.tagName.toLowerCase();
+
+      // Prefer actual rendered surfaces (svg/canvas) over wrapper containers
+      // like ".plot" or ".observablehq-plot" when they are similarly sized,
+      // unless the wrapper contains extra visible content outside the surface.
+      if (tag !== "svg" && tag !== "canvas") {
+        const child = el.querySelector("svg, canvas");
+        if (child) {
+          const cr = child.getBoundingClientRect();
+          if (
+            cr.width >= rect.width * 0.7 &&
+            cr.height >= rect.height * 0.7 &&
+            !hasExtraOutsideSurface(el)
+          ) {
+            continue;
+          }
+        }
+      }
       const vizId = `__viz_${results.length}`;
 
       // Add temporary data attribute for reliable selection
@@ -333,7 +407,7 @@
 
       let uniqueSelector;
       if (el.id) {
-        uniqueSelector = `#${el.id}`;
+        uniqueSelector = `#${CSS.escape(el.id)}`;
       } else {
         uniqueSelector = `[data-viz-id="${vizId}"]`;
       }
@@ -355,6 +429,105 @@
       });
     }
 
+    return results;
+  };
+
+  /**
+   * Discover UI controls (primarily Observable Inputs).
+   * Returns a list of selectors suitable for element screenshots.
+   */
+  const discoverControls = () => {
+    for (const el of document.querySelectorAll('[data-ui-id^="__ui_"]')) {
+      el.removeAttribute("data-ui-id");
+    }
+
+    const MIN_W = 80;
+    const MIN_H = 18;
+    const results = [];
+    const seen = new Set();
+
+    const hasInputsClass = (el) => {
+      for (const cls of el.classList || []) {
+        if (cls.startsWith("inputs-")) return true;
+      }
+      return false;
+    };
+
+    const inContentBlock = (el) => el && Boolean(el.closest(".observablehq--block"));
+    const isVisible = (el) => {
+      if (!el) return false;
+      if (el.closest("nav, header, footer")) return false;
+      const style = getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") return false;
+      return true;
+    };
+
+    const candidates = [
+      ...document.querySelectorAll(
+        [
+          "input",
+          "select",
+          "textarea",
+          "button",
+          '[role="button"]',
+          '[role="slider"]',
+          '[role="switch"]',
+          '[role="checkbox"]',
+          '[role="radio"]',
+          '[role="textbox"]',
+          '[role="combobox"]'
+        ].join(",")
+      )
+    ];
+
+    for (const el of candidates) {
+      if (!inContentBlock(el)) continue;
+      if (!isVisible(el)) continue;
+
+      const container =
+        el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA"
+          ? (el.closest("form") || el.closest("label") || el)
+          : el;
+
+      if (!container) continue;
+      if (seen.has(container)) continue;
+      if (!inContentBlock(container)) continue;
+      if (!isVisible(container)) continue;
+      if (container.tagName === "FORM" && !hasInputsClass(container)) continue;
+
+      const rect = container.getBoundingClientRect();
+      if (rect.width < MIN_W || rect.height < MIN_H) continue;
+      if (rect.width === 0 || rect.height === 0) continue;
+
+      seen.add(container);
+      const uiId = `__ui_${results.length}`;
+      container.setAttribute("data-ui-id", uiId);
+      const selector = container.id ? `#${CSS.escape(container.id)}` : `[data-ui-id="${uiId}"]`;
+      const label =
+        container.tagName === "FORM"
+          ? container.querySelector("label")?.textContent?.trim()
+          : null;
+      const contextText =
+        (label && label.length ? label : null) ||
+        container.getAttribute("aria-label") ||
+        container.getAttribute("title") ||
+        container.textContent?.trim().slice(0, 80) ||
+        extractContext(container);
+
+      results.push({
+        index: results.length,
+        type: "control",
+        selector,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        scrollY: window.scrollY + rect.top,
+        contextText,
+      });
+    }
+
+    // Sort top-to-bottom.
+    results.sort((a, b) => a.scrollY - b.scrollY);
+    // Re-index after sort.
+    for (let i = 0; i < results.length; i++) results[i].index = i;
     return results;
   };
 
@@ -385,6 +558,7 @@
   window.__notebook_viewer__ = {
     clearLogs,
     clickElement,
+    discoverControls,
     discoverVisualizations,
     evalAndPost,
     getCellValue,
@@ -396,4 +570,7 @@
     waitForIdle,
     waitIdleAndPost,
   };
+
+  // Start runtime hooking ASAP (best-effort).
+  hookRuntime();
 })();

@@ -1,0 +1,27 @@
+---
+url: "https://observablehq.com/@observablehq/plot-stacked-area-chart"
+title: "Stacked area chart"
+---
+
+# Stacked area chart
+
+The [areaY](https://observablehq.com/plot/marks/area) mark implicitly [stacks](https://observablehq.com/plot/features/stack) the areas vertically, avoiding occlusion and allowing the reader to make sense of the total as well as of the parts.
+
+```js
+Plot.plot({
+  marginLeft: 50,
+  width: 928,
+  y: {
+    grid: true,
+    label: "↑ Unemployed (thousands)"
+  },
+  marks: [
+    Plot.areaY(unemployment, {x: "date", y: "unemployed", fill: "industry", title: "industry"}),
+    Plot.ruleY([0])
+  ]
+})
+```
+
+```js
+unemployment = FileAttachment("unemployment.csv").csv({typed: true})
+```

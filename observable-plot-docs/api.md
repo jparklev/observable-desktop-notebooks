@@ -1,0 +1,375 @@
+---
+url: "https://observablehq.com/plot/api"
+title: "API index | Plot"
+---
+
+# API index [​](https://observablehq.com/plot/api\#api-index)
+
+## Methods [​](https://observablehq.com/plot/api\#methods)
+
+- [area](https://observablehq.com/plot/marks/area#area) \- Returns a new area mark with the given data and options
+- [areaX](https://observablehq.com/plot/marks/area#areaX) \- Returns a new vertically-oriented area mark for the given data and options, where the baseline and topline share y values, as in a time-series area chart where time goes up↑
+- [areaY](https://observablehq.com/plot/marks/area#areaY) \- Returns a new horizontally-oriented area mark for the given data and options, where the baseline and topline share x values, as in a time-series area chart where time goes right→
+- [arrow](https://observablehq.com/plot/marks/arrow#arrow) \- Returns a new arrow mark for the given data and options, drawing (possibly swoopy) arrows connecting pairs of points
+- [auto](https://observablehq.com/plot/marks/auto#auto) \- Returns a new mark whose implementation is chosen dynamically to best represent the dimensions of the given data specified in options, according to a few simple heuristics
+- [autoSpec](https://observablehq.com/plot/marks/auto#autoSpec) \- Returns a fully-specified options object for the auto mark, with nothing left undefined
+- [axisFx](https://observablehq.com/plot/marks/axis#axisFx) \- Returns a new compound axis mark to document the visual encoding of the horizontal facet position fx scale, comprised of (up to) three marks
+- [axisFy](https://observablehq.com/plot/marks/axis#axisFy) \- Returns a new compound axis mark to document the visual encoding of the vertical facet position fy scale, comprised of (up to) three marks
+- [axisX](https://observablehq.com/plot/marks/axis#axisX) \- Returns a new compound axis mark to document the visual encoding of the horizontal position x scale, comprised of (up to) three marks
+- [axisY](https://observablehq.com/plot/marks/axis#axisY) \- Returns a new compound axis mark to document the visual encoding of the vertical position y scale, comprised of (up to) three marks
+- [barX](https://observablehq.com/plot/marks/bar#barX) \- Returns a new horizontal bar mark for the given data and options; the required x values should be quantitative or temporal, and the optional y values should be ordinal
+- [barY](https://observablehq.com/plot/marks/bar#barY) \- Returns a new vertical bar mark for the given data and options; the required y values should be quantitative or temporal, and the optional x values should be ordinal
+- [bin](https://observablehq.com/plot/transforms/bin#bin) \- Bins on the x and y channels; then subdivides bins on the first channel of z, fill, or stroke, if any; and lastly for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the binned input channel values
+- [binX](https://observablehq.com/plot/transforms/bin#binX) \- Bins on the x channel; then subdivides bins on the first channel of z, fill, or stroke, if any; then further subdivides bins on the y channel, if any and if none of y, y1, and y2 are in outputs; and lastly for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the binned input channel values
+- [binY](https://observablehq.com/plot/transforms/bin#binY) \- Bins on the y channel; then subdivides bins on the first channel of z, fill, or stroke, if any; then further subdivides bins on the x channel, if any and if none of x, x1, and x2 are in outputs; and lastly for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the binned input channel values
+- [bollinger](https://observablehq.com/plot/marks/bollinger#bollinger) \- Given the specified bollinger options, returns a corresponding map implementation for use with the map transform, allowing the bollinger transform to be applied to arbitrary channels instead of only x and y
+- [bollingerX](https://observablehq.com/plot/marks/bollinger#bollingerX) \- Returns a new vertically-oriented bollinger mark for the given data and options, as in a time-series area chart where time goes up↑ (or down↓)
+- [bollingerY](https://observablehq.com/plot/marks/bollinger#bollingerY) \- Returns a new horizontally-oriented bollinger mark for the given data and options, as in a time-series area chart where time goes right→ (or ←left)
+- [boxX](https://observablehq.com/plot/marks/box#boxX) \- Returns a box mark that draws horizontal boxplots where x is quantitative or temporal and y, if present, is ordinal
+- [boxY](https://observablehq.com/plot/marks/box#boxY) \- Returns a box mark that draws vertical boxplots where y is quantitative or temporal and x, if present, is ordinal
+- [cell](https://observablehq.com/plot/marks/cell#cell) \- Returns a rectangular cell mark for the given data and options
+- [cellX](https://observablehq.com/plot/marks/cell#cellX) \- Like cell, but x defaults to the zero-based index \[0, 1, 2, …\], and if stroke is not a channel, fill defaults to the identity function, assuming that data = \[x₀, x₁, x₂, …\]
+- [cellY](https://observablehq.com/plot/marks/cell#cellY) \- Like cell, but y defaults to the zero-based index \[0, 1, 2, …\], and if stroke is not a channel, fill defaults to the identity function, assuming that data = \[y₀, y₁, y₂, …\]
+- [centroid](https://observablehq.com/plot/transforms/centroid#centroid) \- Given a geometry input channel of GeoJSON geometry, derives x and y output channels representing the planar (projected) centroids of the geometry
+- [circle](https://observablehq.com/plot/marks/dot#circle) \- Like dot, except that the symbol option is set to circle
+- [cluster](https://observablehq.com/plot/marks/tree#cluster) \- Shorthand for the tree mark using d3.cluster as the treeLayout option, placing leaf nodes of the tree at the same depth
+- [column](https://observablehq.com/plot/features/transforms#column) \- Returns a \[column, setColumn\] helper for deriving columns; column is a channel transform that returns whatever value was most recently passed to setColumn
+- [contour](https://observablehq.com/plot/marks/contour#contour) \- Returns a new contour mark, which creates contour polygons from spatial samples
+- [crosshair](https://observablehq.com/plot/interactions/crosshair#crosshair) \- Returns a new crosshair mark for the given data and options, drawing horizontal and vertical rules centered at the point closest to the pointer
+- [crosshairX](https://observablehq.com/plot/interactions/crosshair#crosshairX) \- Like crosshair, but uses the pointerX transform
+- [crosshairY](https://observablehq.com/plot/interactions/crosshair#crosshairY) \- Like crosshair, but uses the pointerY transform
+- [delaunayLink](https://observablehq.com/plot/marks/delaunay#delaunayLink) \- Returns a mark that draws links for each edge of the Delaunay triangulation of the points given by the x and y channels
+- [delaunayMesh](https://observablehq.com/plot/marks/delaunay#delaunayMesh) \- Returns a mark that draws a mesh of the Delaunay triangulation of the points given by the x and y channels
+- [density](https://observablehq.com/plot/marks/density#density) \- Returns a mark that draws contours representing the estimated density of the two-dimensional points given by x and y, and possibly weighted by weight
+- [differenceX](https://observablehq.com/plot/marks/difference#differenceX) \- Returns a new horizontal difference mark for the given the specified data and options, as in a time-series chart where time goes down↓ (or up↑)
+- [differenceY](https://observablehq.com/plot/marks/difference#differenceY) \- Returns a new vertical difference mark for the given the specified data and options, as in a time-series chart where time goes right→ (or ←left)
+- [dodgeX](https://observablehq.com/plot/transforms/dodge#dodgeX) \- Given a y position channel, derives a new x position channel that places circles of the given radius r to avoid overlap
+- [dodgeY](https://observablehq.com/plot/transforms/dodge#dodgeY) \- Given an x position channel, derives a new y position channel that places circles of the given radius r to avoid overlap
+- [dot](https://observablehq.com/plot/marks/dot#dot) \- Returns a new dot mark for the given data and options that draws circles, or other symbols, as in a scatterplot
+- [dotX](https://observablehq.com/plot/marks/dot#dotX) \- Like dot, except that x defaults to the identity function, assuming that data = \[x₀, x₁, x₂, …\]
+- [dotY](https://observablehq.com/plot/marks/dot#dotY) \- Like dot, except that y defaults to the identity function, assuming that data = \[y₀, y₁, y₂, …\]
+- [filter](https://observablehq.com/plot/transforms/filter#filter) \- Applies a transform to options to filter the mark’s index according to the given test, which can be a function (receiving the datum d and index i) or a channel value definition such as a field name; only truthy values are retained in the index
+- [find](https://observablehq.com/plot/transforms/group#find) \- Given the specified test function, returns a corresponding reducer implementation for use with the group or bin transform
+- [formatIsoDate](https://observablehq.com/plot/features/formats#formatIsoDate) \- Given a date, returns the shortest equivalent ISO 8601 UTC string
+- [formatMonth](https://observablehq.com/plot/features/formats#formatMonth) \- Returns a function that formats a given month number (from 0 = January to 11 = December) according to the specified locale and format
+- [formatNumber](https://observablehq.com/plot/features/formats#formatNumber) \- Returns a function that formats a given number according to the specified locale
+- [formatWeekday](https://observablehq.com/plot/features/formats#formatWeekday) \- Returns a function that formats a given week day number (from 0 = Sunday to 6 = Saturday) according to the specified locale and format
+- [frame](https://observablehq.com/plot/marks/frame#frame) \- Draws a rectangle around the plot’s frame, or if an anchor is given, a line on the given side
+- [geo](https://observablehq.com/plot/marks/geo#geo) \- Returns a new geo mark with the given data and options
+- [geoCentroid](https://observablehq.com/plot/transforms/centroid#geoCentroid) \- Given a geometry input channel of spherical GeoJSON geometry, derives x and y output channels representing the spherical centroids of the geometry
+- [graticule](https://observablehq.com/plot/marks/geo#graticule) \- Returns a new geo mark whose data is a 10° global graticule
+- [gridFx](https://observablehq.com/plot/marks/grid#gridFx) \- Returns a new horizontally-positioned ruleX mark (a vertical line, \|) that renders a grid for the fx scale
+- [gridFy](https://observablehq.com/plot/marks/grid#gridFy) \- Returns a new vertically-positioned ruleY mark (a horizontal line, —) that renders a grid for the fy scale
+- [gridX](https://observablehq.com/plot/marks/grid#gridX) \- Returns a new horizontally-positioned ruleX mark (a vertical line, \|) that renders a grid for the x scale
+- [gridY](https://observablehq.com/plot/marks/grid#gridY) \- Returns a new vertically-positioned ruleY mark (a horizontal line, —) that renders a grid for the y scale
+- [group](https://observablehq.com/plot/transforms/group#group) \- Groups on the x and y channels; then subdivides groups on the first channel of z, fill, or stroke, if any; and then for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the grouped input channel values
+- [groupX](https://observablehq.com/plot/transforms/group#groupX) \- Groups on the x channel; then subdivides groups on the first channel of z, fill, or stroke, if any; and then for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the grouped input channel values
+- [groupY](https://observablehq.com/plot/transforms/group#groupY) \- Groups on the y channel; then subdivides groups on the first channel of z, fill, or stroke, if any; and then for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the grouped input channel values
+- [groupZ](https://observablehq.com/plot/transforms/group#groupZ) \- Groups on the first channel of z, fill, or stroke, if any, and then for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the grouped input channel values
+- [hexagon](https://observablehq.com/plot/marks/dot#hexagon) \- Like dot, except that the symbol option is set to hexagon
+- [hexbin](https://observablehq.com/plot/transforms/hexbin#hexbin) \- Bins hexagonally on the scaled x and y channels; then subdivides bins on the first channel of z, fill, or stroke, if any; and lastly for each channel in the specified outputs, applies the corresponding reduce method to produce new channel values from the binned input channel values
+- [hexgrid](https://observablehq.com/plot/marks/hexgrid#hexgrid) \- The hexgrid decoration mark complements the hexbin transform, showing the outlines of all hexagons spanning the frame with a default stroke of currentColor and a default strokeOpacity of 0.1, similar to the the default axis grids
+- [hull](https://observablehq.com/plot/marks/delaunay#hull) \- Returns a mark that draws a convex hull around the points given by the x and y channels
+- [identity](https://observablehq.com/plot/features/transforms#identity) \- A channel transform that returns the data as-is, avoiding an extra copy when defining a channel as being equal to the data
+- [image](https://observablehq.com/plot/marks/image#image) \- Returns a new image mark for the given data and options that draws images as in a scatterplot
+- [indexOf](https://observablehq.com/plot/features/transforms#indexOf) \- A channel transform that returns the zero-based index \[0, 1, 2, …\] of the data; often used as a default for mark shorthand
+- [initializer](https://observablehq.com/plot/features/transforms#initializer) \- Given an options object that may specify some basic initializers (filter, sort, or reverse) or a custom initializer, composes those initializers with the given initializer function, returning a new options object
+- [interpolateNearest](https://observablehq.com/plot/marks/raster#interpolateNearest) \- Assigns each pixel in the raster grid the value of the closest sample; effectively a Voronoi diagram
+- [interpolateNone](https://observablehq.com/plot/marks/raster#interpolateNone) \- Applies a simple forward mapping of samples, binning them into pixels in the raster grid without any blending or interpolation
+- [interpolatorBarycentric](https://observablehq.com/plot/marks/raster#interpolatorBarycentric) \- Constructs a Delaunay triangulation of the samples, and then for each pixel in the raster grid, determines the triangle that covers the pixel’s centroid and interpolates the values associated with the triangle’s vertices using barycentric coordinates
+- [interpolatorRandomWalk](https://observablehq.com/plot/marks/raster#interpolatorRandomWalk) \- For each pixel in the raster grid, initiates a random walk, stopping when either the walk is within a given distance (minDistance) of a sample or the maximum allowable number of steps (maxSteps) have been taken, and then assigning the current pixel the closest sample’s value
+- [legend](https://observablehq.com/plot/features/legends#legend) \- Generates a standalone legend for the scale defined by the given options, returning either an SVG or HTML element depending on the scale and the desired legend type
+- [line](https://observablehq.com/plot/marks/line#line) \- Returns a new line mark for the given data and options by connecting control points
+- [lineX](https://observablehq.com/plot/marks/line#lineX) \- Like line, except that x defaults to the identity function assuming that data = \[x₀, x₁, x₂, …\] and y defaults to the zero-based index \[0, 1, 2, …\]
+- [lineY](https://observablehq.com/plot/marks/line#lineY) \- Like line, except y defaults to the identity function and assumes that data = \[y₀, y₁, y₂, …\] and x defaults to the zero-based index \[0, 1, 2, …\]
+- [linearRegressionX](https://observablehq.com/plot/marks/linear-regression#linearRegressionX) \- Like linearRegressionY, but where x is the dependent variable and y is the independent variable
+- [linearRegressionY](https://observablehq.com/plot/marks/linear-regression#linearRegressionY) \- Returns a mark that draws linear regression lines with confidence bands, representing the estimated relation of a dependent variable (y) on an independent variable (x)
+- [link](https://observablehq.com/plot/marks/link#link) \- Returns a new link mark for the given data and options, drawing line segments (curves) connecting pairs of points
+- [map](https://observablehq.com/plot/transforms/map#map) \- Groups on the first channel of z, fill, or stroke, if any, and then for each channel in the specified outputs, applies the corresponding map method to produce new channel values for each series
+- [mapX](https://observablehq.com/plot/transforms/map#mapX) \- Groups on the first channel of z, fill, or stroke, if any, and then applies the specified map method to each of the x, x1, and x2 channels in the specified options to produce new channel values for each series
+- [mapY](https://observablehq.com/plot/transforms/map#mapY) \- Groups on the first channel of z, fill, or stroke, if any, and then applies the specified map method to each of the y, y1, and y2 channels in the specified options to produce new channel values for each series
+- [marks](https://observablehq.com/plot/features/marks#marks) \- Given an array of marks, returns a compound mark; supports mark.plot shorthand
+- [normalize](https://observablehq.com/plot/transforms/normalize#normalize) \- Given a normalize basis, returns a corresponding map implementation for use with the map transform, allowing the normalization of arbitrary channels instead of only x and y
+- [normalizeX](https://observablehq.com/plot/transforms/normalize#normalizeX) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives new x, x1, and x2 channels for each corresponding input channel by normalizing to the given basis
+- [normalizeY](https://observablehq.com/plot/transforms/normalize#normalizeY) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives new y, y1, and y2 channels for each corresponding input channel by normalizing to the given basis
+- [numberInterval](https://observablehq.com/plot/features/intervals#numberInterval) \- Given a number period, returns a corresponding numeric range interval
+- [plot](https://observablehq.com/plot/features/plots#plot) \- Renders a new plot given the specified options and returns the corresponding SVG element, or an HTML figure element if a caption or legend is requested
+- [pointer](https://observablehq.com/plot/interactions/pointer#pointer) \- Applies a render transform to the specified options to filter the mark index such that only the point closest to the pointer is rendered; the mark will re-render interactively in response to pointer events
+- [pointerX](https://observablehq.com/plot/interactions/pointer#pointerX) \- Like the pointer transform, except the determination of the closest point considers mostly the x (horizontal↔︎) position; this should be used for plots where x is the dominant dimension, such as time in a time-series chart, the binned quantitative dimension in a histogram, or the categorical dimension of a bar chart
+- [pointerY](https://observablehq.com/plot/interactions/pointer#pointerY) \- Like the pointer transform, except the determination of the closest point considers mostly the y (vertical↕︎) position; this should be used for plots where y is the dominant dimension, such as time in a time-series chart, the binned quantitative dimension in a histogram, or the categorical dimension of a bar chart
+- [raster](https://observablehq.com/plot/marks/raster#raster) \- Returns a raster mark which renders a raster image from spatial samples
+- [rect](https://observablehq.com/plot/marks/rect#rect) \- Returns a rect mark for the given data and options
+- [rectX](https://observablehq.com/plot/marks/rect#rectX) \- Like rect, but if neither x1 nor x2 is specified, an implicit stackX transform is applied to x, and if x is not specified, it defaults to the identity function, assuming that data is an array of numbers \[x₀, x₁, x₂, …\]
+- [rectY](https://observablehq.com/plot/marks/rect#rectY) \- Like rect, but if neither y1 nor y2 is specified, apply an implicit stackY transform is applied to y, and if y is not specified, it defaults to the identity function, assuming that data is an array of numbers \[y₀, y₁, y₂, …\]
+- [reverse](https://observablehq.com/plot/transforms/sort#reverse) \- Applies a transform to options to reverse the order of the mark’s index, say for reverse input order
+- [ruleX](https://observablehq.com/plot/marks/rule#ruleX) \- Returns a new horizontally-positioned ruleX mark (a vertical line, \|) for the given data and options
+- [ruleY](https://observablehq.com/plot/marks/rule#ruleY) \- Returns a new vertically-positioned ruleY mark (a horizontal line, —) for the given data and options
+- [scale](https://observablehq.com/plot/features/scales#scale) \- Returns a standalone scale given the specified scale options, which must define exactly one named scale
+- [select](https://observablehq.com/plot/transforms/select#select) \- Groups on the first channel of z, fill, or stroke, if any, and then selects points from each series based on the given selector
+- [selectFirst](https://observablehq.com/plot/transforms/select#selectFirst) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the first point from each series in input order
+- [selectLast](https://observablehq.com/plot/transforms/select#selectLast) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the last point from each series in input order
+- [selectMaxX](https://observablehq.com/plot/transforms/select#selectMaxX) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the maximum point from each series based on x channel value
+- [selectMaxY](https://observablehq.com/plot/transforms/select#selectMaxY) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the maximum point from each series based on y channel value
+- [selectMinX](https://observablehq.com/plot/transforms/select#selectMinX) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the minimum point from each series based on x channel value
+- [selectMinY](https://observablehq.com/plot/transforms/select#selectMinY) \- Groups on the first channel of z, fill, or stroke, if any, and then selects the minimum point from each series based on y channel value
+- [shiftX](https://observablehq.com/plot/transforms/shift#shiftX) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives x1 and x2 output channels by shifting the input x channel according to the specified interval
+- [shiftY](https://observablehq.com/plot/transforms/shift#shiftY) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives y1 and y2 output channels by shifting the input y channel according to the specified interval
+- [shuffle](https://observablehq.com/plot/transforms/sort#shuffle) \- Applies a transform to options to randomly shuffles the mark’s index
+- [sort](https://observablehq.com/plot/transforms/sort#sort) \- Applies a transform to options to sort the mark’s index by the specified order
+- [sphere](https://observablehq.com/plot/marks/geo#sphere) \- Returns a new geo mark whose data is the outline of the sphere on the projection’s plane
+- [spike](https://observablehq.com/plot/marks/vector#spike) \- Like vector, but with default options suitable for drawing a spike map
+- [stackX](https://observablehq.com/plot/transforms/stack#stackX) \- Transforms a length channel x into starting and ending position channels x1 and x2 by “stacking” elements that share a given y position
+- [stackX1](https://observablehq.com/plot/transforms/stack#stackX1) \- Like stackX, but returns the starting position x1 as the x channel, for example to position a dot on the left-hand side of each element of a stack
+- [stackX2](https://observablehq.com/plot/transforms/stack#stackX2) \- Like stackX, but returns the starting position x2 as the x channel, for example to position a dot on the right-hand side of each element of a stack
+- [stackY](https://observablehq.com/plot/transforms/stack#stackY) \- Transforms a length channel y into starting and ending position channels y1 and y2 by “stacking” elements that share a given x position
+- [stackY1](https://observablehq.com/plot/transforms/stack#stackY1) \- Like stackY, but returns the starting position y1 as the y channel, for example to position a dot at the bottom of each element of a stack
+- [stackY2](https://observablehq.com/plot/transforms/stack#stackY2) \- Like stackY, but returns the ending position y2 as the y channel, for example to position a dot at the top of each element of a stack
+- [text](https://observablehq.com/plot/marks/text#text) \- Returns a new text mark for the given data and options
+- [textX](https://observablehq.com/plot/marks/text#textX) \- Like text, but x defaults to the identity function, assuming that data = \[x₀, x₁, x₂, …\]
+- [textY](https://observablehq.com/plot/marks/text#textY) \- Like text, but y defaults to the identity function, assuming that data = \[y₀, y₁, y₂, …\]
+- [tickX](https://observablehq.com/plot/marks/tick#tickX) \- Returns a new horizontally-positioned tickX mark (a vertical line, \|) for the given data and options
+- [tickY](https://observablehq.com/plot/marks/tick#tickY) \- Returns a new vertically-positioned tickY mark (a horizontal line, —) for the given data and options
+- [timeInterval](https://observablehq.com/plot/features/intervals#timeInterval) \- Given a string period, returns a corresponding local time nice interval
+- [tip](https://observablehq.com/plot/marks/tip#tip) \- Returns a new tip mark for the given data and options
+- [transform](https://observablehq.com/plot/features/transforms#transform) \- Given an options object that may specify some basic transforms (filter, sort, or reverse) or a custom transform, composes those transforms with the given transform function, returning a new options object
+- [tree](https://observablehq.com/plot/marks/tree#tree) \- Returns a compound tree mark, with a link to display edges from parent to child, a dot to display nodes, and a text to display node labels
+- [treeLink](https://observablehq.com/plot/transforms/tree#treeLink) \- Populates the x1, y1, x2, and y2 channels, and applies the following defaults
+- [treeNode](https://observablehq.com/plot/transforms/tree#treeNode) \- Populates the x and y channels with the positions for each node, and applies a default frameAnchor based on the specified treeAnchor
+- [utcInterval](https://observablehq.com/plot/features/intervals#utcInterval) \- Given a string period, returns a corresponding UTC nice interval
+- [valueof](https://observablehq.com/plot/features/transforms#valueof) \- Given some data and a channel value definition (such as a field name or function accessor), returns an array of the specified type containing the corresponding values derived from data
+- [vector](https://observablehq.com/plot/marks/vector#vector) \- Returns a new vector mark for the given data and options
+- [vectorX](https://observablehq.com/plot/marks/vector#vectorX) \- Like vector, but x instead defaults to the identity function and y defaults to null, assuming that data is an array of numbers \[x₀, x₁, x₂, …\]
+- [vectorY](https://observablehq.com/plot/marks/vector#vectorY) \- Like vector, but y instead defaults to the identity function and x defaults to null, assuming that data is an array of numbers \[y₀, y₁, y₂, …\]
+- [voronoi](https://observablehq.com/plot/marks/delaunay#voronoi) \- Returns a mark that draws polygons for each cell of the Voronoi tesselation of the points given by the x and y channels
+- [voronoiMesh](https://observablehq.com/plot/marks/delaunay#voronoiMesh) \- Returns a mark that draws a mesh for the cell boundaries of the Voronoi tesselation of the points given by the x and y channels
+- [waffleX](https://observablehq.com/plot/marks/waffle#waffleX) \- Returns a new horizonta waffle mark for the given data and options; the required x values should be quantitative, and the optional y values should be ordinal
+- [waffleY](https://observablehq.com/plot/marks/waffle#waffleY) \- Returns a new vertical waffle mark for the given data and options; the required y values should be quantitative, and the optional x values should be ordinal
+- [window](https://observablehq.com/plot/transforms/window#window) \- Given the specified window options, returns a corresponding map implementation for use with the map transform, allowing the window transform to be applied to arbitrary channels instead of only x and y
+- [windowX](https://observablehq.com/plot/transforms/window#windowX) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives new x, x1, and x2 channels by computing a moving window of channel values and deriving reduced values from the window
+- [windowY](https://observablehq.com/plot/transforms/window#windowY) \- Groups data into series using the first channel of z, fill, or stroke (if any), then derives new y, y1, and y2 channels by computing a moving window of channel values and deriving reduced values from the window
+
+## Options [​](https://observablehq.com/plot/api\#options)
+
+- **align** \- [scale](https://observablehq.com/plot/features/scales)
+- **anchor** \- [bollinger map method](https://observablehq.com/plot/marks/bollinger), [dodge transform](https://observablehq.com/plot/transforms/dodge), [frame mark](https://observablehq.com/plot/marks/frame), [grid mark](https://observablehq.com/plot/marks/axis), [tip mark](https://observablehq.com/plot/marks/tip), [vector mark](https://observablehq.com/plot/marks/vector), [window transform](https://observablehq.com/plot/transforms/window)
+- **ariaDescription** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [scale](https://observablehq.com/plot/features/scales)
+- **ariaHidden** \- [mark](https://observablehq.com/plot/features/marks)
+- **ariaLabel** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [scale](https://observablehq.com/plot/features/scales)
+- **aspectRatio** \- [plot](https://observablehq.com/plot/features/plots)
+- **axis** \- [scale](https://observablehq.com/plot/features/scales)
+- **bandwidth** \- [density mark](https://observablehq.com/plot/marks/density)
+- **base** \- [scale](https://observablehq.com/plot/features/scales)
+- **basis** \- [normalize transform](https://observablehq.com/plot/transforms/normalize)
+- **bend** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **binWidth** \- [hexbin transform](https://observablehq.com/plot/transforms/hexbin), [hexgrid mark](https://observablehq.com/plot/marks/hexgrid)
+- **blur** \- [raster mark](https://observablehq.com/plot/marks/raster)
+- **caption** \- [plot](https://observablehq.com/plot/features/plots)
+- **channels** \- [mark](https://observablehq.com/plot/features/marks)
+- **ci** \- [linear regression mark](https://observablehq.com/plot/marks/linear-regression)
+- **clamp** \- [scale](https://observablehq.com/plot/features/scales)
+- **className** \- [legend](https://observablehq.com/plot/features/legends), [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **clip** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [projection](https://observablehq.com/plot/features/projections)
+- **color** \- [auto mark](https://observablehq.com/plot/marks/auto), [bollinger mark](https://observablehq.com/plot/marks/bollinger), [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [grid mark](https://observablehq.com/plot/marks/axis), [opacity legend](https://observablehq.com/plot/features/legends), [plot](https://observablehq.com/plot/features/plots)
+- **columns** \- [swatches legend](https://observablehq.com/plot/features/legends)
+- **constant** \- [scale](https://observablehq.com/plot/features/scales)
+- **crossOrigin** \- [image mark](https://observablehq.com/plot/marks/image)
+- **cumulative** \- [bin transform](https://observablehq.com/plot/transforms/bin)
+- **curve** \- [curve](https://observablehq.com/plot/features/curves), [link mark](https://observablehq.com/plot/marks/link)
+- **data** \- [group transform](https://observablehq.com/plot/transforms/group), [plot](https://observablehq.com/plot/features/plots)
+- **delimiter** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **document** \- [plot](https://observablehq.com/plot/features/plots)
+- **domain** \- [bin transform](https://observablehq.com/plot/transforms/bin), [projection](https://observablehq.com/plot/features/projections), [scale](https://observablehq.com/plot/features/scales)
+- **dot** \- [tree mark](https://observablehq.com/plot/marks/tree)
+- **dx** \- [mark](https://observablehq.com/plot/features/marks)
+- **dy** \- [mark](https://observablehq.com/plot/features/marks)
+- **exponent** \- [scale](https://observablehq.com/plot/features/scales)
+- **facet** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **facetAnchor** \- [mark](https://observablehq.com/plot/features/marks)
+- **figure** \- [plot](https://observablehq.com/plot/features/plots)
+- **fill** \- [mark](https://observablehq.com/plot/features/marks), [raster mark](https://observablehq.com/plot/marks/raster), [symbol legend](https://observablehq.com/plot/features/legends)
+- **fillOpacity** \- [difference mark](https://observablehq.com/plot/marks/difference), [mark](https://observablehq.com/plot/features/marks), [raster mark](https://observablehq.com/plot/marks/raster), [symbol legend](https://observablehq.com/plot/features/legends)
+- **filter** \- [group transform](https://observablehq.com/plot/transforms/group), [mark](https://observablehq.com/plot/features/marks)
+- **fontFamily** \- [text mark](https://observablehq.com/plot/marks/text)
+- **fontSize** \- [text mark](https://observablehq.com/plot/marks/text)
+- **fontStyle** \- [text mark](https://observablehq.com/plot/marks/text)
+- **fontVariant** \- [legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales), [text mark](https://observablehq.com/plot/marks/text)
+- **fontWeight** \- [text mark](https://observablehq.com/plot/marks/text)
+- **format** \- [tip mark](https://observablehq.com/plot/marks/tip)
+- **frameAnchor** \- [dot mark](https://observablehq.com/plot/marks/dot), [image mark](https://observablehq.com/plot/marks/image), [text mark](https://observablehq.com/plot/marks/text), [tip mark](https://observablehq.com/plot/marks/tip), [vector mark](https://observablehq.com/plot/marks/vector)
+- **fx** \- [auto mark](https://observablehq.com/plot/marks/auto), [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **fy** \- [auto mark](https://observablehq.com/plot/marks/auto), [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **gap** \- [waffle mark](https://observablehq.com/plot/marks/waffle)
+- **geometry** \- [centroid transform](https://observablehq.com/plot/transforms/centroid), [geo mark](https://observablehq.com/plot/marks/geo)
+- **grid** \- [plot](https://observablehq.com/plot/features/plots), [scale](https://observablehq.com/plot/features/scales)
+- **headAngle** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **headLength** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **height** \- [image mark](https://observablehq.com/plot/marks/image), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends), [raster mark](https://observablehq.com/plot/marks/raster)
+- **href** \- [mark](https://observablehq.com/plot/features/marks)
+- **imageFilter** \- [mark](https://observablehq.com/plot/features/marks)
+- **imageRendering** \- [image mark](https://observablehq.com/plot/marks/image), [raster mark](https://observablehq.com/plot/marks/raster)
+- **initializer** \- [mark](https://observablehq.com/plot/features/marks)
+- **inset** \- [arrow mark](https://observablehq.com/plot/marks/arrow), [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **insetBottom** \- [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **insetEnd** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **insetLeft** \- [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **insetRight** \- [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **insetStart** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **insetTop** \- [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **interpolate** \- [raster mark](https://observablehq.com/plot/marks/raster), [scale](https://observablehq.com/plot/features/scales)
+- **interval** \- [bar mark](https://observablehq.com/plot/marks/bar), [bin transform](https://observablehq.com/plot/transforms/bin), [contour mark](https://observablehq.com/plot/marks/contour), [dot mark](https://observablehq.com/plot/marks/dot), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [scale](https://observablehq.com/plot/features/scales), [text mark](https://observablehq.com/plot/marks/text)
+- **k** \- [bollinger map method](https://observablehq.com/plot/marks/bollinger), [window transform](https://observablehq.com/plot/transforms/window)
+- **label** \- [legend](https://observablehq.com/plot/features/legends), [plot](https://observablehq.com/plot/features/plots), [scale](https://observablehq.com/plot/features/scales)
+- **labelAnchor** \- [scale](https://observablehq.com/plot/features/scales)
+- **labelArrow** \- [scale](https://observablehq.com/plot/features/scales)
+- **labelOffset** \- [scale](https://observablehq.com/plot/features/scales)
+- **legend** \- [legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales)
+- **length** \- [plot](https://observablehq.com/plot/features/plots), [vector mark](https://observablehq.com/plot/marks/vector)
+- **limit** \- [scale](https://observablehq.com/plot/features/scales)
+- **line** \- [scale](https://observablehq.com/plot/features/scales)
+- **lineAnchor** \- [text mark](https://observablehq.com/plot/marks/text)
+- **lineHeight** \- [text mark](https://observablehq.com/plot/marks/text)
+- **lineWidth** \- [text mark](https://observablehq.com/plot/marks/text)
+- **margin** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **marginBottom** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends)
+- **marginLeft** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends)
+- **marginRight** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends)
+- **marginTop** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends)
+- **mark** \- [auto mark](https://observablehq.com/plot/marks/auto)
+- **marker** \- [marker](https://observablehq.com/plot/features/markers)
+- **markerEnd** \- [marker](https://observablehq.com/plot/features/markers)
+- **markerMid** \- [marker](https://observablehq.com/plot/features/markers)
+- **markerStart** \- [marker](https://observablehq.com/plot/features/markers)
+- **marks** \- [plot](https://observablehq.com/plot/features/plots)
+- **maxRadius** \- [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [pointer](https://observablehq.com/plot/interactions/pointer)
+- **mixBlendMode** \- [mark](https://observablehq.com/plot/features/marks)
+- **monospace** \- [text mark](https://observablehq.com/plot/marks/text)
+- **multiple** \- [waffle mark](https://observablehq.com/plot/marks/waffle)
+- **n** \- [bollinger map method](https://observablehq.com/plot/marks/bollinger), [scale](https://observablehq.com/plot/features/scales)
+- **negativeFill** \- [difference mark](https://observablehq.com/plot/marks/difference)
+- **negativeFillOpacity** \- [difference mark](https://observablehq.com/plot/marks/difference)
+- **nice** \- [scale](https://observablehq.com/plot/features/scales)
+- **offset** \- [stack transform](https://observablehq.com/plot/transforms/stack)
+- **opacity** \- [color legend](https://observablehq.com/plot/features/legends), [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [grid mark](https://observablehq.com/plot/marks/axis), [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **order** \- [scale](https://observablehq.com/plot/features/scales), [stack transform](https://observablehq.com/plot/transforms/stack)
+- **padding** \- [dodge transform](https://observablehq.com/plot/transforms/dodge), [scale](https://observablehq.com/plot/features/scales)
+- **paddingInner** \- [scale](https://observablehq.com/plot/features/scales)
+- **paddingOuter** \- [scale](https://observablehq.com/plot/features/scales)
+- **paintOrder** \- [mark](https://observablehq.com/plot/features/marks)
+- **parallels** \- [projection](https://observablehq.com/plot/features/projections)
+- **path** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **pathFilter** \- [tip mark](https://observablehq.com/plot/marks/tip)
+- **percent** \- [scale](https://observablehq.com/plot/features/scales)
+- **pivot** \- [scale](https://observablehq.com/plot/features/scales)
+- **pixelSize** \- [raster mark](https://observablehq.com/plot/marks/raster)
+- **pointerEvents** \- [mark](https://observablehq.com/plot/features/marks)
+- **pointerSize** \- [tip mark](https://observablehq.com/plot/marks/tip)
+- **positiveFill** \- [difference mark](https://observablehq.com/plot/marks/difference)
+- **positiveFillOpacity** \- [difference mark](https://observablehq.com/plot/marks/difference)
+- **precision** \- [linear regression mark](https://observablehq.com/plot/marks/linear-regression), [projection](https://observablehq.com/plot/features/projections)
+- **preferredAnchor** \- [tip mark](https://observablehq.com/plot/marks/tip)
+- **preserveAspectRatio** \- [image mark](https://observablehq.com/plot/marks/image)
+- **projection** \- [plot](https://observablehq.com/plot/features/plots)
+- **px** \- [pointer](https://observablehq.com/plot/interactions/pointer)
+- **py** \- [pointer](https://observablehq.com/plot/interactions/pointer)
+- **r** \- [dodge transform](https://observablehq.com/plot/transforms/dodge), [dot mark](https://observablehq.com/plot/marks/dot), [geo mark](https://observablehq.com/plot/marks/geo), [image mark](https://observablehq.com/plot/marks/image), [plot](https://observablehq.com/plot/features/plots), [rect mark](https://observablehq.com/plot/marks/rect), [symbol legend](https://observablehq.com/plot/features/legends), [vector mark](https://observablehq.com/plot/marks/vector)
+- **range** \- [scale](https://observablehq.com/plot/features/scales)
+- **reduce** \- [area mark](https://observablehq.com/plot/marks/area), [line mark](https://observablehq.com/plot/marks/line), [linear regression mark](https://observablehq.com/plot/marks/linear-regression), [scale](https://observablehq.com/plot/features/scales), [window transform](https://observablehq.com/plot/transforms/window)
+- **render** \- [mark](https://observablehq.com/plot/features/marks)
+- **reverse** \- [group transform](https://observablehq.com/plot/transforms/group), [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales), [stack transform](https://observablehq.com/plot/transforms/stack)
+- **rotate** \- [dot mark](https://observablehq.com/plot/marks/dot), [image mark](https://observablehq.com/plot/marks/image), [projection](https://observablehq.com/plot/features/projections), [text mark](https://observablehq.com/plot/marks/text), [vector mark](https://observablehq.com/plot/marks/vector)
+- **round** \- [ramp legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales), [waffle mark](https://observablehq.com/plot/marks/waffle)
+- **ruleStroke** \- [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **ruleStrokeOpacity** \- [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **ruleStrokeWidth** \- [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **rx** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx1** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx1y1** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx1y2** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx2** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx2y1** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **rx2y2** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **ry** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **ry1** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **ry2** \- [rect mark](https://observablehq.com/plot/marks/rect)
+- **scheme** \- [scale](https://observablehq.com/plot/features/scales)
+- **shape** \- [vector mark](https://observablehq.com/plot/marks/vector)
+- **shapeRendering** \- [mark](https://observablehq.com/plot/features/marks)
+- **size** \- [auto mark](https://observablehq.com/plot/marks/auto)
+- **smooth** \- [contour mark](https://observablehq.com/plot/marks/contour)
+- **sort** \- [group transform](https://observablehq.com/plot/transforms/group), [mark](https://observablehq.com/plot/features/marks)
+- **src** \- [image mark](https://observablehq.com/plot/marks/image)
+- **strict** \- [bollinger map method](https://observablehq.com/plot/marks/bollinger), [window transform](https://observablehq.com/plot/transforms/window)
+- **stroke** \- [mark](https://observablehq.com/plot/features/marks), [symbol legend](https://observablehq.com/plot/features/legends)
+- **strokeDasharray** \- [mark](https://observablehq.com/plot/features/marks)
+- **strokeDashoffset** \- [mark](https://observablehq.com/plot/features/marks)
+- **strokeLinecap** \- [mark](https://observablehq.com/plot/features/marks)
+- **strokeLinejoin** \- [mark](https://observablehq.com/plot/features/marks)
+- **strokeMiterlimit** \- [mark](https://observablehq.com/plot/features/marks)
+- **strokeOpacity** \- [mark](https://observablehq.com/plot/features/marks), [symbol legend](https://observablehq.com/plot/features/legends)
+- **strokeWidth** \- [mark](https://observablehq.com/plot/features/marks), [symbol legend](https://observablehq.com/plot/features/legends)
+- **style** \- [legend](https://observablehq.com/plot/features/legends), [plot](https://observablehq.com/plot/features/plots)
+- **subtitle** \- [plot](https://observablehq.com/plot/features/plots)
+- **swatchHeight** \- [swatches legend](https://observablehq.com/plot/features/legends)
+- **swatchSize** \- [swatches legend](https://observablehq.com/plot/features/legends)
+- **swatchWidth** \- [swatches legend](https://observablehq.com/plot/features/legends)
+- **sweep** \- [arrow mark](https://observablehq.com/plot/marks/arrow)
+- **symbol** \- [dot mark](https://observablehq.com/plot/marks/dot), [plot](https://observablehq.com/plot/features/plots)
+- **symmetric** \- [scale](https://observablehq.com/plot/features/scales)
+- **target** \- [mark](https://observablehq.com/plot/features/marks)
+- **tension** \- [curve](https://observablehq.com/plot/features/curves)
+- **text** \- [text mark](https://observablehq.com/plot/marks/text)
+- **textAnchor** \- [text mark](https://observablehq.com/plot/marks/text)
+- **textFill** \- [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **textLayout** \- [tree mark](https://observablehq.com/plot/marks/tree)
+- **textOverflow** \- [text mark](https://observablehq.com/plot/marks/text)
+- **textPadding** \- [tip mark](https://observablehq.com/plot/marks/tip)
+- **textStroke** \- [axis mark](https://observablehq.com/plot/marks/axis), [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [tree mark](https://observablehq.com/plot/marks/tree)
+- **textStrokeOpacity** \- [axis mark](https://observablehq.com/plot/marks/axis), [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **textStrokeWidth** \- [axis mark](https://observablehq.com/plot/marks/axis), [crosshair mark](https://observablehq.com/plot/interactions/crosshair)
+- **thresholds** \- [bin transform](https://observablehq.com/plot/transforms/bin), [contour mark](https://observablehq.com/plot/marks/contour), [density mark](https://observablehq.com/plot/marks/density)
+- **tickFormat** \- [legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales)
+- **tickPadding** \- [scale](https://observablehq.com/plot/features/scales)
+- **tickRotate** \- [scale](https://observablehq.com/plot/features/scales)
+- **tickSize** \- [ramp legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales)
+- **tickSpacing** \- [scale](https://observablehq.com/plot/features/scales)
+- **ticks** \- [ramp legend](https://observablehq.com/plot/features/legends), [scale](https://observablehq.com/plot/features/scales)
+- **tip** \- [mark](https://observablehq.com/plot/features/marks)
+- **title** \- [mark](https://observablehq.com/plot/features/marks), [plot](https://observablehq.com/plot/features/plots)
+- **transform** \- [mark](https://observablehq.com/plot/features/marks), [scale](https://observablehq.com/plot/features/scales)
+- **treeAnchor** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **treeLayout** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **treeSeparation** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **treeSort** \- [tree transform](https://observablehq.com/plot/transforms/tree)
+- **type** \- [projection](https://observablehq.com/plot/features/projections), [scale](https://observablehq.com/plot/features/scales)
+- **unit** \- [waffle mark](https://observablehq.com/plot/marks/waffle)
+- **unknown** \- [scale](https://observablehq.com/plot/features/scales)
+- **value** \- [contour mark](https://observablehq.com/plot/marks/contour)
+- **weight** \- [density mark](https://observablehq.com/plot/marks/density)
+- **width** \- [image mark](https://observablehq.com/plot/marks/image), [plot](https://observablehq.com/plot/features/plots), [ramp legend](https://observablehq.com/plot/features/legends), [raster mark](https://observablehq.com/plot/marks/raster), [swatches legend](https://observablehq.com/plot/features/legends)
+- **x** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [auto mark](https://observablehq.com/plot/marks/auto), [bar mark](https://observablehq.com/plot/marks/bar), [cell mark](https://observablehq.com/plot/marks/cell), [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [delaunay mark](https://observablehq.com/plot/marks/delaunay), [density mark](https://observablehq.com/plot/marks/density), [difference mark](https://observablehq.com/plot/marks/difference), [dodge transform](https://observablehq.com/plot/transforms/dodge), [dot mark](https://observablehq.com/plot/marks/dot), [geo mark](https://observablehq.com/plot/marks/geo), [image mark](https://observablehq.com/plot/marks/image), [line mark](https://observablehq.com/plot/marks/line), [linear regression mark](https://observablehq.com/plot/marks/linear-regression), [link mark](https://observablehq.com/plot/marks/link), [plot](https://observablehq.com/plot/features/plots), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [text mark](https://observablehq.com/plot/marks/text), [tick mark](https://observablehq.com/plot/marks/tick), [tip mark](https://observablehq.com/plot/marks/tip), [vector mark](https://observablehq.com/plot/marks/vector)
+- **x1** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [bar mark](https://observablehq.com/plot/marks/bar), [difference mark](https://observablehq.com/plot/marks/difference), [link mark](https://observablehq.com/plot/marks/link), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [tip mark](https://observablehq.com/plot/marks/tip)
+- **x2** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [bar mark](https://observablehq.com/plot/marks/bar), [difference mark](https://observablehq.com/plot/marks/difference), [link mark](https://observablehq.com/plot/marks/link), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [tip mark](https://observablehq.com/plot/marks/tip)
+- **y** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [auto mark](https://observablehq.com/plot/marks/auto), [bar mark](https://observablehq.com/plot/marks/bar), [cell mark](https://observablehq.com/plot/marks/cell), [crosshair mark](https://observablehq.com/plot/interactions/crosshair), [delaunay mark](https://observablehq.com/plot/marks/delaunay), [density mark](https://observablehq.com/plot/marks/density), [difference mark](https://observablehq.com/plot/marks/difference), [dodge transform](https://observablehq.com/plot/transforms/dodge), [dot mark](https://observablehq.com/plot/marks/dot), [geo mark](https://observablehq.com/plot/marks/geo), [image mark](https://observablehq.com/plot/marks/image), [line mark](https://observablehq.com/plot/marks/line), [linear regression mark](https://observablehq.com/plot/marks/linear-regression), [link mark](https://observablehq.com/plot/marks/link), [plot](https://observablehq.com/plot/features/plots), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [text mark](https://observablehq.com/plot/marks/text), [tick mark](https://observablehq.com/plot/marks/tick), [tip mark](https://observablehq.com/plot/marks/tip), [vector mark](https://observablehq.com/plot/marks/vector)
+- **y1** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [bar mark](https://observablehq.com/plot/marks/bar), [difference mark](https://observablehq.com/plot/marks/difference), [link mark](https://observablehq.com/plot/marks/link), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [tip mark](https://observablehq.com/plot/marks/tip)
+- **y2** \- [area mark](https://observablehq.com/plot/marks/area), [arrow mark](https://observablehq.com/plot/marks/arrow), [bar mark](https://observablehq.com/plot/marks/bar), [difference mark](https://observablehq.com/plot/marks/difference), [link mark](https://observablehq.com/plot/marks/link), [pointer](https://observablehq.com/plot/interactions/pointer), [raster mark](https://observablehq.com/plot/marks/raster), [rect mark](https://observablehq.com/plot/marks/rect), [rule mark](https://observablehq.com/plot/marks/rule), [tip mark](https://observablehq.com/plot/marks/tip)
+- **z** \- [area mark](https://observablehq.com/plot/marks/area), [bin transform](https://observablehq.com/plot/transforms/bin), [delaunay mark](https://observablehq.com/plot/marks/delaunay), [density mark](https://observablehq.com/plot/marks/density), [difference mark](https://observablehq.com/plot/marks/difference), [group transform](https://observablehq.com/plot/transforms/group), [hexbin transform](https://observablehq.com/plot/transforms/hexbin), [line mark](https://observablehq.com/plot/marks/line), [linear regression mark](https://observablehq.com/plot/marks/linear-regression), [map transform](https://observablehq.com/plot/transforms/map), [select transform](https://observablehq.com/plot/transforms/select), [stack transform](https://observablehq.com/plot/transforms/stack)
+- **zero** \- [scale](https://observablehq.com/plot/features/scales)
+
+Pager
+
+[Previous pagePointer](https://observablehq.com/plot/interactions/pointer)
+
+[Home](https://observablehq.com/ "Home")
+
+Resources
+
+- [Forum](https://talk.observablehq.com/)
+- [Slack](https://observablehq.com/slack/join)
+- [Releases](https://github.com/observablehq/plot/releases)
+
+Observable
+
+- [Product](https://observablehq.com/product)
+- [Plot](https://observablehq.com/plot)
+- [Integrations](https://observablehq.com/data-integrations)
+- [Pricing](https://observablehq.com/pricing)
