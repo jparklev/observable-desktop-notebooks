@@ -1,5 +1,21 @@
 # Observable Desktop Integration for Claude Code
 
+> **CRITICAL: Always Use Gemini for Ideation and Review**
+>
+> Before building a notebook, use **Gemini CLI (`gemini-3-pro-preview`)** to:
+> 1. **Ideate** — Outline the narrative arc, sections, and key visualizations
+> 2. **Review** — After building, pipe the notebook to Gemini for critical review of mathematical accuracy, conceptual clarity, and missing nuances
+>
+> Gemini excels at catching errors (like confusing 1.5x Kelly for ruin when the threshold is actually 2x) and suggesting improvements. Always have Gemini in the loop.
+>
+> ```bash
+> # Ideation
+> gemini -m gemini-3-pro-preview "Design a notebook on [topic]. Outline sections, visualizations, key formulas..."
+>
+> # Review
+> cat notebooks/my-notebook.html | gemini -m gemini-3-pro-preview "Review this notebook for mathematical accuracy, conceptual clarity, and missing nuances. Be critical."
+> ```
+
 > **CRITICAL: Silent Operation Required**
 >
 > When verifying notebook output, **ONLY use `capture-cell`**. This command moves the target cell to the top of the HTML, reloads in background, captures a screenshot silently, then restores the original order.
@@ -410,6 +426,24 @@ viewof price = Inputs.range([0, 1000], {
   format: x => "$" + x.toFixed(2)
 })
 ```
+
+### Slider Value Display Issue
+
+The number input boxes next to sliders can appear blank in Observable Desktop, making it hard for users to see the current value. **Always pair sliders with a markdown cell that displays the current value reactively.**
+
+```html
+<!-- Slider input -->
+<script type="application/vnd.observable.javascript" pinned>
+viewof rate = Inputs.range([0, 0.30], {value: 0.10, step: 0.01, label: "Return Rate"})
+</script>
+
+<!-- Display current value below -->
+<script type="text/markdown">
+**Current settings:** Return = ${(rate * 100).toFixed(0)}%
+</script>
+```
+
+This ensures users can always see the exact slider values, especially when inputs are pinned and the code is visible but the rendered value isn't.
 
 ## Generators for Dynamic Values
 
