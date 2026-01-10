@@ -2,6 +2,8 @@
 
 This repo uses **Observable Framework** notebooks (`notebooks/src/*.md`) rendered in a hidden **Tauri** WebView, controlled via a local HTTP API.
 
+Note: the Framework preview is configured via `notebooks/observablehq.config.js` (including a small `head` script for reliable rendering in hidden/offscreen WKWebViews).
+
 ## Observable Framework Notebook Syntax
 
 **IMPORTANT**: Observable Framework markdown is NOT the same as Observable notebooks. Key differences:
@@ -124,19 +126,24 @@ Use the `verify` command to auto-discover and screenshot all visualizations:
 
 # 2. Run verification (discovers charts, takes screenshots, checks errors)
 ./viewer.py verify
+./viewer.py verify --include-controls
 ```
 
 This returns:
 - `page_errors`: Any console errors
 - `visualizations`: Array of discovered charts with screenshot paths and context
+- `controls`: (Optional) Array of discovered UI controls (Inputs/sliders/buttons) with screenshot paths and context
 - `inputs`: Count of interactive inputs
 - `exposed_cells`: List of values exposed via `bridge.js`
 
 Each visualization includes:
 - `screenshot_path`: Temp file path for sub-agent analysis
+- `screenshot_error`: Present when capture fails (so failures are visible without re-running)
 - `context_text`: Preceding markdown explaining what the chart should show
 - `size`: Width/height in pixels
 - `selector`: CSS selector for the element
+
+Screenshots are written under the system temp dir (e.g. `$TMPDIR/notebook-viewer/screenshot-*.png` on macOS).
 
 ### Manual Verification
 
@@ -159,9 +166,9 @@ For detailed inspection:
 - **Python 3.10+** (for `viewer.py` CLI)
 
 The framework manager tries node resolution in this order:
-1. `fnm exec --using=default npx`
-2. Local `./node_modules/.bin/` binaries
-3. System `npx`
+1. `fnm exec --using 22 -- ./node_modules/.bin/observable preview`
+2. Local `./node_modules/.bin/observable preview`
+3. System `npx --yes observable preview`
 
 ## Fast Startup
 
@@ -221,6 +228,7 @@ Use `track()` in reactive cells that re-run frequently to avoid unnecessary upda
 # Notebooks
 ./viewer.py open notebooks/src/index.md
 ./viewer.py open notebooks/src/index.md --wait  # Wait for idle after open
+./viewer.py open notebooks/src/index.md --wait --wait-timeout-ms 30000
 ./viewer.py notebooks                           # List notebook history
 ./viewer.py reload
 
@@ -231,6 +239,7 @@ Use `track()` in reactive cells that re-run frequently to avoid unnecessary upda
 # Verification (auto-discovers charts, screenshots, checks errors)
 ./viewer.py verify
 ./viewer.py verify --timeout-ms 15000           # Longer timeout for heavy notebooks
+./viewer.py verify --include-controls           # Also capture UI controls
 
 # Screenshots
 ./viewer.py screenshot
@@ -251,4 +260,3 @@ Use `track()` in reactive cells that re-run frequently to avoid unnecessary upda
 ./viewer.py hide
 ./viewer.py show
 ```
-

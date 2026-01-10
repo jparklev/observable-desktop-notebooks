@@ -32,6 +32,8 @@ bun install
 ./viewer.py cells
 ./viewer.py cell meanY
 ./viewer.py eval "return window.__exposed.meanY"
+./viewer.py verify
+./viewer.py verify --include-controls
 ```
 
 5. When you want to see the notebook, show the viewer window:
@@ -44,10 +46,13 @@ bun install
 
 Observable Framework pages compile to ES modules; notebook variables are not attached to `window`.
 
-For `/cells` and `/cell/:name`, notebooks should export JSON-serializable values on `window.__exposed`:
+For `/cells` and `/cell/:name`, notebooks should expose JSON-serializable values using `notebooks/src/bridge.js`:
 
 ```js
-window.__exposed = { someValue, anotherValue };
+import { expose, track } from "./bridge.js";
+
+expose({ someValue, anotherValue });
+track({ frequentlyUpdatingValue });
 ```
 
 ## Architecture

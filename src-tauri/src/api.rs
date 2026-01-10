@@ -637,6 +637,7 @@ return {{
 struct VerifyRequest {
     timeout_ms: Option<u64>,
     screenshot_padding: Option<u32>,
+    include_controls: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -647,6 +648,8 @@ struct VerifyVisualization {
     selector: Option<String>,
     size: [u32; 2],
     screenshot_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    screenshot_error: Option<String>,
     context_text: Option<String>,
 }
 
@@ -655,8 +658,133 @@ struct VerifyResponse {
     ok: bool,
     page_errors: Vec<String>,
     visualizations: Vec<VerifyVisualization>,
+    controls: Vec<VerifyVisualization>,
     inputs: usize,
     exposed_cells: Vec<String>,
+}
+
+async fn capture_discovered(
+    api: &ApiState,
+    window: &tauri::WebviewWindow,
+    data: &Value,
+    padding: f64,
+) -> Result<Vec<VerifyVisualization>, ApiError> {
+    let mut out = Vec::new();
+
+    let Some(arr) = data.as_array() else {
+        return Ok(out);
+    };
+
+    for item in arr {
+        let index = item.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let viz_type = item
+            .get("type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let selector = item.get("selector").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let context_text = item.get("contextText").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+        let rect = item.get("rect");
+        let width = rect
+            .and_then(|r| r.get("width"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0) as u32;
+        let height = rect
+            .and_then(|r| r.get("height"))
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0) as u32;
+
+        let mut screenshot_path = String::new();
+        let mut screenshot_error = None;
+
+        // Scroll to element and capture.
+        if let Some(ref sel) = selector {
+            let sel_json = serde_json::to_string(sel).map_err(|e| ApiError(e.into()))?;
+            let scroll_code = format!(
+                r#"
+const el = document.querySelector({sel_json});
+if (el) {{
+  const rect = el.getBoundingClientRect();
+  const docTop = window.scrollY + rect.top;
+  const targetY = docTop - (window.innerHeight - rect.height) / 2;
+  window.scrollTo(0, Math.max(0, targetY));
+  // requestAnimationFrame can be throttled/paused in hidden webviews; use timers instead.
+  await new Promise(r => setTimeout(r, 0));
+  await new Promise(r => setTimeout(r, 0));
+  const r = el.getBoundingClientRect();
+  return {{
+    rect: {{x: r.x, y: r.y, width: r.width, height: r.height}},
+    viewport: {{width: window.innerWidth, height: window.innerHeight}}
+  }};
+}}
+return null;
+"#
+            );
+
+            match run_js(api, window, &scroll_code, JS_TIMEOUT_MS).await {
+                Ok(metrics_val) => {
+                    if metrics_val.is_null() {
+                        screenshot_error = Some("selector not found".to_string());
+                    } else {
+                        #[derive(Deserialize)]
+                        struct Metrics {
+                            rect: Rect,
+                            viewport: Viewport,
+                        }
+                        #[derive(Deserialize)]
+                        struct Rect {
+                            x: f64,
+                            y: f64,
+                            width: f64,
+                            height: f64,
+                        }
+                        #[derive(Deserialize)]
+                        struct Viewport {
+                            width: f64,
+                            height: f64,
+                        }
+
+                        match serde_json::from_value::<Metrics>(metrics_val) {
+                            Ok(metrics) => match screenshot::capture_element(
+                                window,
+                                screenshot::CssRect {
+                                    x: metrics.rect.x,
+                                    y: metrics.rect.y,
+                                    width: metrics.rect.width,
+                                    height: metrics.rect.height,
+                                },
+                                screenshot::CssViewport {
+                                    width: metrics.viewport.width,
+                                    height: metrics.viewport.height,
+                                },
+                                padding,
+                            )
+                            .await
+                            {
+                                Ok(path) => screenshot_path = path,
+                                Err(e) => screenshot_error = Some(e.to_string()),
+                            },
+                            Err(e) => screenshot_error = Some(e.to_string()),
+                        }
+                    }
+                }
+                Err(e) => screenshot_error = Some(e.0.to_string()),
+            };
+        }
+
+        out.push(VerifyVisualization {
+            index,
+            viz_type,
+            selector,
+            size: [width, height],
+            screenshot_path,
+            screenshot_error,
+            context_text,
+        });
+    }
+
+    Ok(out)
 }
 
 async fn verify_notebook(
@@ -670,6 +798,7 @@ async fn verify_notebook(
 
     let timeout_ms = req.timeout_ms.unwrap_or(10000);
     let padding = req.screenshot_padding.unwrap_or(16) as f64;
+    let include_controls = req.include_controls.unwrap_or(false);
 
     // 1. Wait for idle
     wait_idle_js(&api, &window, timeout_ms).await?;
@@ -701,6 +830,18 @@ async fn verify_notebook(
     )
     .await?;
 
+    let controls_data = if include_controls {
+        run_js(
+            &api,
+            &window,
+            "return window.__notebook_viewer__?.discoverControls?.() ?? [];",
+            JS_TIMEOUT_MS,
+        )
+        .await?
+    } else {
+        Value::Null
+    };
+
     // 4. Count inputs
     let input_count = run_js(
         &api,
@@ -725,122 +866,32 @@ async fn verify_notebook(
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
         .unwrap_or_default();
 
-    // 6. Screenshot each visualization (sequential for speed, no duplicate scrolling)
-    let mut visualizations = Vec::new();
+    // 6. Screenshot targets (sequential for speed; predictable ordering)
+    let visualizations = capture_discovered(&api, &window, &viz_data, padding).await?;
+    let controls = capture_discovered(&api, &window, &controls_data, padding).await?;
 
-    if let Some(viz_arr) = viz_data.as_array() {
-        for viz in viz_arr {
-            let index = viz.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-            let viz_type = viz
-                .get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown")
-                .to_string();
-            let selector = viz.get("selector").and_then(|v| v.as_str()).map(|s| s.to_string());
-            let context_text = viz.get("contextText").and_then(|v| v.as_str()).map(|s| s.to_string());
-
-            let rect = viz.get("rect");
-            let width = rect
-                .and_then(|r| r.get("width"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0) as u32;
-            let height = rect
-                .and_then(|r| r.get("height"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0) as u32;
-
-            // Scroll to element and capture
-            if let Some(ref sel) = selector {
-                let sel_json = serde_json::to_string(sel).map_err(|e| ApiError(e.into()))?;
-                let scroll_code = format!(
-                    r#"
-                    const el = document.querySelector({sel_json});
-                    if (el) {{
-                        // Calculate document position and scroll manually
-                        // (scrollIntoView can overshoot on some pages)
-                        const rect = el.getBoundingClientRect();
-                        const docTop = window.scrollY + rect.top;
-                        const targetY = docTop - (window.innerHeight - rect.height) / 2;
-                        window.scrollTo(0, Math.max(0, targetY));
-                        await new Promise(r => setTimeout(r, 50));
-                        const r = el.getBoundingClientRect();
-                        return {{
-                            rect: {{x: r.x, y: r.y, width: r.width, height: r.height}},
-                            viewport: {{width: window.innerWidth, height: window.innerHeight}}
-                        }};
-                    }}
-                    return null;
-                    "#
-                );
-
-                if let Ok(metrics_val) = run_js(&api, &window, &scroll_code, JS_TIMEOUT_MS).await {
-                    if !metrics_val.is_null() {
-                        #[derive(Deserialize)]
-                        struct Metrics {
-                            rect: Rect,
-                            viewport: Viewport,
-                        }
-                        #[derive(Deserialize)]
-                        struct Rect {
-                            x: f64,
-                            y: f64,
-                            width: f64,
-                            height: f64,
-                        }
-                        #[derive(Deserialize)]
-                        struct Viewport {
-                            width: f64,
-                            height: f64,
-                        }
-
-                        if let Ok(metrics) = serde_json::from_value::<Metrics>(metrics_val) {
-                            if let Ok(path) = screenshot::capture_element(
-                                &window,
-                                screenshot::CssRect {
-                                    x: metrics.rect.x,
-                                    y: metrics.rect.y,
-                                    width: metrics.rect.width,
-                                    height: metrics.rect.height,
-                                },
-                                screenshot::CssViewport {
-                                    width: metrics.viewport.width,
-                                    height: metrics.viewport.height,
-                                },
-                                padding,
-                            )
-                            .await
-                            {
-                                visualizations.push(VerifyVisualization {
-                                    index,
-                                    viz_type,
-                                    selector,
-                                    size: [width, height],
-                                    screenshot_path: path,
-                                    context_text,
-                                });
-                                continue;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Fallback: no screenshot captured
-            visualizations.push(VerifyVisualization {
-                index,
-                viz_type,
-                selector,
-                size: [width, height],
-                screenshot_path: String::new(),
-                context_text,
-            });
-        }
-    }
+    // Best-effort cleanup of temporary selectors added by discover functions.
+    let _ = run_js(
+        &api,
+        &window,
+        r#"
+try {
+  for (const el of document.querySelectorAll('[data-viz-id], [data-ui-id]')) {
+    el.removeAttribute('data-viz-id');
+    el.removeAttribute('data-ui-id');
+  }
+} catch (_) {}
+return null;
+"#,
+        JS_TIMEOUT_MS,
+    )
+    .await;
 
     Ok(Json(VerifyResponse {
         ok: true,
         page_errors,
         visualizations,
+        controls,
         inputs: input_count,
         exposed_cells,
     }))

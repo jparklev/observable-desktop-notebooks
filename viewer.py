@@ -151,13 +151,13 @@ def cmd_open(args):
     print(json.dumps(res, indent=2))
 
     if args.wait:
-        idle_res = http_json(
-            "POST",
-            "/wait-idle",
-            {"timeout_ms": args.wait_timeout_ms},
-            timeout_s=max(5.0, args.wait_timeout_ms / 1000.0 + 1.0),
-        )
-        print(json.dumps(idle_res, indent=2))
+        deadline = time.monotonic() + args.wait_timeout_ms / 1000.0
+        url = res.get("url") if isinstance(res, dict) else None
+        if isinstance(url, str) and url:
+            wait_until_url(url, deadline)
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        remaining_ms = max(0, remaining_ms)
+        print(json.dumps(wait_until_idle(remaining_ms), indent=2))
 
 
 def cmd_show(_args):
@@ -177,13 +177,76 @@ def cmd_reload(_args):
 
 def cmd_wait_idle(args):
     ensure_daemon()
-    res = http_json(
-        "POST",
-        "/wait-idle",
-        {"timeout_ms": args.timeout_ms},
-        timeout_s=max(5.0, args.timeout_ms / 1000.0 + 1.0),
-    )
-    print(json.dumps(res, indent=2))
+    print(json.dumps(wait_until_idle(args.timeout_ms), indent=2))
+
+
+def wait_until_idle(timeout_ms: int) -> dict:
+    started = time.monotonic()
+    timeout_s = timeout_ms / 1000.0
+    deadline = started + timeout_s
+
+    while True:
+        now = time.monotonic()
+        remaining_ms = int((deadline - now) * 1000)
+        if remaining_ms <= 0:
+            waited_ms = int((now - started) * 1000)
+            return {"ok": True, "result": {"timeout": True, "waited_ms": waited_ms}}
+
+        slice_ms = min(1000, remaining_ms)
+        try:
+            res = http_json(
+                "POST",
+                "/wait-idle",
+                {"timeout_ms": slice_ms},
+                timeout_s=max(5.0, slice_ms / 1000.0 + 1.0),
+            )
+        except RuntimeError as e:
+            # If the page is navigating, the JS context can get torn down and we
+            # won't receive a reply. Retry quickly instead of stalling for the
+            # full requested timeout.
+            if "timed out waiting for idle reply" in str(e):
+                time.sleep(0.05)
+                continue
+            raise
+
+        result = res.get("result", {})
+        if isinstance(result, dict) and result.get("timeout") is False:
+            waited_ms = int((time.monotonic() - started) * 1000)
+            return {"ok": True, "result": {"timeout": False, "waited_ms": waited_ms}}
+
+
+def wait_until_url(expected_url: str, deadline: float) -> dict:
+    started = time.monotonic()
+    want = expected_url.rstrip("/")
+
+    while True:
+        now = time.monotonic()
+        remaining_ms = int((deadline - now) * 1000)
+        if remaining_ms <= 0:
+            waited_ms = int((now - started) * 1000)
+            return {"ok": True, "result": {"timeout": True, "waited_ms": waited_ms}}
+
+        slice_ms = min(1000, remaining_ms)
+        try:
+            res = http_json(
+                "POST",
+                "/eval",
+                {"code": "return location.href;", "timeout_ms": slice_ms},
+                timeout_s=max(5.0, slice_ms / 1000.0 + 1.0),
+            )
+        except RuntimeError as e:
+            msg = str(e)
+            if "timed out waiting for JS reply" in msg or "JS reply channel closed" in msg:
+                time.sleep(0.05)
+                continue
+            raise
+
+        got = res.get("result") if isinstance(res, dict) else None
+        if isinstance(got, str) and got.rstrip("/") == want:
+            waited_ms = int((time.monotonic() - started) * 1000)
+            return {"ok": True, "result": {"timeout": False, "waited_ms": waited_ms}}
+
+        time.sleep(0.05)
 
 
 def cmd_eval(args):
@@ -260,6 +323,7 @@ def cmd_verify(args):
     payload = {
         "timeout_ms": args.timeout_ms,
         "screenshot_padding": args.padding,
+        "include_controls": args.include_controls,
     }
     # Use a longer HTTP timeout since verify does multiple screenshots
     res = http_json(
@@ -327,6 +391,11 @@ def main(argv: list[str]) -> int:
     verify_p = sub.add_parser("verify", help="Verify notebook: discover charts, take screenshots, check errors")
     verify_p.add_argument("--timeout-ms", type=int, default=10000, help="Timeout for waiting for idle")
     verify_p.add_argument("--padding", type=int, default=16, help="Padding around screenshots")
+    verify_p.add_argument(
+        "--include-controls",
+        action="store_true",
+        help="Also capture screenshots of UI controls (e.g. Observable Inputs)",
+    )
     verify_p.set_defaults(fn=cmd_verify)
 
     args = p.parse_args(argv)
