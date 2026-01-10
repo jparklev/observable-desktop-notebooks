@@ -3,4 +3,9 @@ logs/
 __pycache__/
 .vite/
 /tmp/
-*.png
+node_modules/
+bun.lockb
+dist/
+src-tauri/target/
+src-tauri/gen/
+.DS_Store
