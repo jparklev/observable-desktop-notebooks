@@ -9,13 +9,16 @@ pub fn navigate_to(window: &WebviewWindow, url: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_loaded(window: &WebviewWindow) -> Result<()> {
+pub fn ensure_loaded(window: &WebviewWindow, api_port: u16) -> Result<()> {
+    window.eval(&format!(
+        "window.__notebook_viewer_api_port__ = {api_port};"
+    ))?;
     window.eval(BRIDGE_JS)?;
     Ok(())
 }
 
 pub fn dispatch_eval(window: &WebviewWindow, api_port: u16, id: &str, code: &str) -> Result<()> {
-    ensure_loaded(window)?;
+    ensure_loaded(window, api_port)?;
     let id = serde_json::to_string(id)?;
     let code = serde_json::to_string(code)?;
     window.eval(format!(
@@ -42,7 +45,7 @@ pub fn dispatch_wait_idle(
     id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
-    ensure_loaded(window)?;
+    ensure_loaded(window, api_port)?;
     let id = serde_json::to_string(id)?;
     window.eval(format!(
         r#"(async () => {{

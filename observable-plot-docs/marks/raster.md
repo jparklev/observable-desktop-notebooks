@@ -1,0 +1,399 @@
+---
+url: "https://observablehq.com/plot/marks/raster"
+title: "Raster mark | Plot"
+---
+
+# Raster mark [^0.6.2](https://github.com/observablehq/plot/releases/tag/v0.6.2 "added in v0.6.2") [​](https://observablehq.com/plot/marks/raster\#raster-mark)
+
+TIP
+
+To produce contours instead of a heatmap, see the [contour mark](https://observablehq.com/plot/marks/contour).
+
+The **raster mark** renders a [raster image](https://en.wikipedia.org/wiki/Raster_graphics) — that is, an image formed by discrete pixels in a grid, not a vector graphic like other marks. And whereas the [image mark](https://observablehq.com/plot/marks/image) shows an _existing_ image, the raster mark _creates_ one from abstract data, either by [interpolating spatial samples](https://observablehq.com/plot/marks/raster#spatial-interpolators) (arbitrary points in **x** and **y**) or by sampling a function _f_( _x_, _y_) along the grid.
+
+For example, the heatmap below shows the topography of the [Maungawhau volcano](https://en.wikipedia.org/wiki/Maungawhau), produced from a 87×61 grid of elevation samples.
+
+100120140160180Elevation (m)05101520253035404550556001020304050607080 [Fork](https://observablehq.com/@observablehq/plot-volcano-raster "Open on Observable")
+
+js
+
+```
+Plot.plot({
+  color: {label: "Elevation (m)", legend: true},
+  marks: [\
+    Plot.raster(volcano.values, {width: volcano.width, height: volcano.height})\
+  ]
+})
+```
+
+The grid (`volcano.values` above) is a list of numbers `[103, 104, 104, …]`. The first number `103` is the elevation of the bottom-left corner. This grid is in [row-major order](https://en.wikipedia.org/wiki/Row-_and_column-major_order), meaning that the elevations of the first row are followed by the second row, then the third, and so on. Here’s a smaller grid to demonstrate the concept.
+
+js
+
+```
+grid = ({
+  "width": 10,
+  "height": 10,
+  "values": [\
+     0,  0,  0,  0,  0,  0,  0,  0,  0,  0,\
+     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,\
+     0,  2,  4,  6,  8, 10, 12, 14, 16, 18,\
+     0,  3,  6,  9, 12, 15, 18, 21, 24, 27,\
+     0,  4,  8, 12, 16, 20, 24, 28, 32, 36,\
+     0,  5, 10, 15, 20, 25, 30, 35, 40, 45,\
+     0,  6, 12, 18, 24, 30, 36, 42, 48, 54,\
+     0,  7, 14, 21, 28, 35, 42, 49, 56, 63,\
+     0,  8, 16, 24, 32, 40, 48, 56, 64, 72,\
+     0,  9, 18, 27, 36, 45, 54, 63, 72, 81\
+  ]
+})
+```
+
+We can visualize this small grid directly with a [text mark](https://observablehq.com/plot/marks/text) using the same color encoding. Notice that the image below is flipped vertically relative to the data: the first row of the data is the _bottom_ of the image because below _y_ points up↑.
+
+012345678910↑ row012345678910column →00000000000123456789024681012141618036912151821242704812162024283236051015202530354045061218243036424854071421283542495663081624324048566472091827364554637281 [Fork](https://observablehq.com/@observablehq/plot-small-grid-raster "Open on Observable")
+
+js
+
+```
+Plot.plot({
+  grid: true,
+  x: {domain: [0, grid.width], label: "column"},
+  y: {domain: [0, grid.height], label: "row"},
+  marks: [\
+    Plot.text(grid.values, {\
+      text: Plot.identity,\
+      fill: Plot.identity,\
+      x: (d, i) => i % grid.width + 0.5,\
+      y: (d, i) => Math.floor(i / grid.width) + 0.5\
+    })\
+  ]
+})
+```
+
+Also notice that the grid points are offset by 0.5: they represent the _middle_ of each pixel rather than the corner. Below, the raster mark is laid under the text mark to show the raster image.
+
+01234567891001234567891000000000000123456789024681012141618036912151821242704812162024283236051015202530354045061218243036424854071421283542495663081624324048566472091827364554637281 [Fork](https://observablehq.com/@observablehq/plot-small-grid-raster "Open on Observable")
+
+js
+
+```
+Plot.plot({
+  marks: [\
+    Plot.raster(grid.values, {\
+      width: grid.width,\
+      height: grid.height,\
+      imageRendering: "pixelated" // to better show the grid\
+    }),\
+    Plot.text(grid.values, {\
+      text: Plot.identity,\
+      fill: "white",\
+      x: (d, i) => i % grid.width + 0.5,\
+      y: (d, i) => Math.floor(i / grid.width) + 0.5\
+    })\
+  ]
+})
+```
+
+CAUTION
+
+Safari does not currently support the **imageRendering** option.
+
+While the raster mark provides convenient shorthand for strictly gridded data, as above, it _also_ works with samples in arbitrary positions and arbitrary order. For example, in 1955 the [Great Britain aeromagnetic survey](https://www.bgs.ac.uk/datasets/gb-aeromagnetic-survey/) measured the Earth’s magnetic field by plane. Each sample recorded the longitude and latitude alongside the strength of the [IGRF](https://www.ncei.noaa.gov/products/international-geomagnetic-reference-field) in [nanoteslas](https://en.wikipedia.org/wiki/Tesla_(unit)).
+
+```
+LONGITUDE,LATITUDE,MAG_IGRF90
+-2.36216,51.70945,7
+-2.36195,51.71727,6
+-2.36089,51.72404,9
+-2.35893,51.73758,12
+-2.35715,51.7532,18
+-2.35737,51.76636,24
+```
+
+Using a [dot mark](https://observablehq.com/plot/marks/dot), we can make a quick scatterplot to see the irregular grid. We’ll use a _diverging_ color scale to distinguish positive and negative values.
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igrf90-dots "Open on Observable")
+
+js
+
+```
+Plot.dot(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90"}).plot({color: {type: "diverging"}})
+```
+
+And using a [line mark](https://observablehq.com/plot/marks/line), we can connect the line segments to reveal the flight paths.
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igrf90-flight-paths "Open on Observable")
+
+js
+
+```
+Plot.line(ca55, {x: "LONGITUDE", y: "LATITUDE", stroke: "MAG_IGRF90", z: "LINE_NUMB-SEG"}).plot({color: {type: "diverging"}})
+```
+
+The image above starts to be readable, but it would be frustrating to not do more with this data given all the effort that went into collecting it! Fortunately the raster mark’s **interpolate** option can quickly produce a continuous image.
+
+The _nearest_ interpolator assigns the value of each pixel in the grid using the nearest sample in the data. In effect, this produces a Voronoi diagram.
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igfr90-raster "Open on Observable")
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: "nearest"}).plot({color: {type: "diverging"}})
+```
+
+TIP
+
+You can also make this Voronoi diagram with the [voronoi mark](https://observablehq.com/plot/marks/delaunay).
+
+If the observed phenomenon is continuous, we can use the _barycentric_ interpolator. This constructs a Delaunay triangulation of the samples, and then paints each triangle by interpolating the values of the triangle’s vertices in [barycentric coordinates](https://en.wikipedia.org/wiki/Barycentric_coordinate_system). (Points outside the convex hull are extrapolated.)
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igfr90-barycentric "Open on Observable")
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: "barycentric"}).plot({color: {type: "diverging"}})
+```
+
+Finally, the _random-walk_ interpolator assigns the value at each grid location simply by taking a random walk that stops after reaching a minimum distance from any sample! The interpolator uses the [walk on spheres](https://observablehq.com/@fil/walk-on-spheres) algorithm, limited to 2 consecutive jumps.
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igrf90-random-walk "Open on Observable")
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: "random-walk"}).plot({color: {type: "diverging"}})
+```
+
+With the _random-walk_ method, the image is grainy, reflecting the uncertainty of the random walk. Use the **blur** option to make it smoother.
+
+51.751.851.952.052.152.252.352.452.552.6↑ LATITUDE−2.4−2.2−2.0−1.8−1.6−1.4−1.2−1.0−0.8−0.6LONGITUDE → [Fork](https://observablehq.com/@observablehq/plot-igrf90-random-walk "Open on Observable")
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: "random-walk", blur: 5}).plot({color: {type: "diverging"}})
+```
+
+TIP
+
+If none of the built-in [spatial interpolators](https://observablehq.com/plot/marks/raster#spatial-interpolators) suffice, you can write your own as a custom function!
+
+The raster mark can interpolate categorical values, too! Below, this creates an interesting “map” of penguin species in the space of culmen length _vs._ depth.
+
+AdelieChinstrapGentoo
+
+1415161718192021↑ culmen\_depth\_mm3540455055culmen\_length\_mm → [Fork](https://observablehq.com/@observablehq/plot-nominal-random-walk "Open on Observable")
+
+js
+
+```
+Plot.plot({
+  color: {legend: true},
+  marks: [\
+    Plot.raster(penguins, {x: "culmen_length_mm", y: "culmen_depth_mm", fill: "species", interpolate: "random-walk"}),\
+    Plot.dot(penguins, {x: "culmen_length_mm", y: "culmen_depth_mm"})\
+  ]
+})
+```
+
+As an alternative to interpolating discrete samples, you can supply values as a continuous function _f_( _x_, _y_); the raster mark will invoke this function for the midpoint of each pixel in the raster grid, similar to a WebGL fragment shader. For example, below we visualize the [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set) by counting the number of iterations needed until the point “escapes”.
+
+−1.0−0.8−0.6−0.4−0.20.00.20.40.60.81.0−2.0−1.5−1.0−0.50.00.51.0 [Fork](https://observablehq.com/@observablehq/plot-mandelbrot-set "Open on Observable")
+
+js
+
+```
+Plot.raster({fill: mandelbrot, x1: -2, x2: 1, y1: -1.164, y2: 1.164}).plot({aspectRatio: 1})
+```
+
+js
+
+```
+function mandelbrot(x, y) {
+  for (let n = 0, zr = 0, zi = 0; n < 80; ++n) {
+    [zr, zi] = [zr * zr - zi * zi + x, 2 * zr * zi + y];
+    if (zr * zr + zi * zi > 4) return n;
+  }
+}
+```
+
+Or to visualize the arctangent function:
+
+−1.0−0.8−0.6−0.4−0.20.00.20.40.60.81.0−1.0−0.8−0.6−0.4−0.20.00.20.40.60.81.0 [Fork](https://observablehq.com/@observablehq/plot-arctangent-raster "Open on Observable")
+
+js
+
+```
+Plot.raster({x1: -1, x2: 1, y1: -1, y2: 1, fill: (x, y) => Math.atan2(y, x)}).plot()
+```
+
+TIP
+
+When faceting, the sample function _f_( _x_, _y_) is passed a third argument of the facet values { _fx_, _fy_}.
+
+The raster mark supports Plot’s [projection system](https://observablehq.com/plot/features/projections). The chart below shows global atmospheric water vapor measurements from [NASA Earth Observations](https://neo.gsfc.nasa.gov/view.php?datasetId=MYDAL2_M_SKY_WV).
+
+0246Water vapor (cm) [Fork](https://observablehq.com/@observablehq/plot-raster-projection "Open on Observable")
+
+js
+
+```
+Plot.plot({
+  projection: "equal-earth",
+  color: {
+    scheme: "BuPu",
+    domain: [0, 6],
+    legend: true,
+    label: "Water vapor (cm)"
+  },
+  marks: [\
+    Plot.raster(vapor, {\
+      fill: Plot.identity,\
+      width: 360,\
+      height: 180,\
+      x1: -180,\
+      y1: 90,\
+      x2: 180,\
+      y2: -90,\
+      interpolate: "barycentric",\
+      clip: "sphere"\
+    }),\
+    Plot.sphere({stroke: "black"})\
+  ]
+})
+```
+
+## Raster options [​](https://observablehq.com/plot/marks/raster\#raster-options)
+
+If _data_ is provided, it represents discrete samples in abstract coordinates **x** and **y**; the **fill** and **fillOpacity** channels specify further abstract values ( _e.g._, height in a topographic map) to be [spatially interpolated](https://observablehq.com/plot/marks/raster#spatial-interpolators) to produce an image.
+
+js
+
+```
+Plot.raster(volcano.values, {width: volcano.width, height: volcano.height})
+```
+
+The **fill** and **fillOpacity** channels may alternatively be specified as continuous functions _f_( _x_, _y_) to be evaluated at each pixel centroid of the raster grid (without interpolation).
+
+js
+
+```
+Plot.raster({x1: -1, x2: 1, y1: -1, y2: 1, fill: (x, y) => Math.atan2(y, x)})
+```
+
+The resolution of the rectangular raster image may be specified with the following options:
+
+- **width** \- the number of pixels on each horizontal line
+- **height** \- the number of lines; a positive integer
+
+The raster dimensions may also be imputed from the extent of _x_ and _y_ and a pixel size:
+
+- **x1** \- the starting horizontal position; bound to the _x_ scale
+- **x2** \- the ending horizontal position; bound to the _x_ scale
+- **y1** \- the starting vertical position; bound to the _y_ scale
+- **y2** \- the ending vertical position; bound to the _y_ scale
+- **pixelSize** \- the screen size of a raster pixel; defaults to 1
+
+If **width** is specified, **x1** defaults to 0 and **x2** defaults to **width**; likewise, if **height** is specified, **y1** defaults to 0 and **y2** defaults to **height**. Otherwise, if **data** is specified, **x1**, **y1**, **x2**, and **y2** respectively default to the frame’s left, top, right, and bottom coordinates. Lastly, if **data** is not specified (as when **fill** or **fillOpacity** is a function of _x_ and _y_), you must specify all of **x1**, **x2**, **y1**, and **y2** to define the raster domain (see below). The **pixelSize** may be set to the inverse of the devicePixelRatio for a sharper image.
+
+The following raster-specific constant options are supported:
+
+- **interpolate** \- the [spatial interpolation method](https://observablehq.com/plot/marks/raster#spatial-interpolators)
+- **imageRendering** \- the [image-rendering attribute](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/image-rendering); defaults to _auto_ (bilinear)
+- **blur** \- a non-negative pixel radius for smoothing; defaults to 0
+
+The **imageRendering** option may be set to _pixelated_ for a sharper image. The **interpolate** option is ignored when **fill** or **fillOpacity** is a function of _x_ and _y_.
+
+## raster( _data_, _options_) [​](https://observablehq.com/plot/marks/raster\#raster)
+
+js
+
+```
+Plot.raster(volcano.values, {width: volcano.width, height: volcano.height})
+```
+
+Returns a new raster mark with the given (optional) _data_ and _options_.
+
+## Spatial interpolators [​](https://observablehq.com/plot/marks/raster\#spatial-interpolators)
+
+The [raster](https://observablehq.com/plot/marks/raster#raster-mark) and [contour](https://observablehq.com/plot/marks/contour) marks use **spatial interpolators** to populate a raster grid from a discrete set of (often ungridded) spatial samples. The **interpolate** option controls how these marks compute the raster grid. The following built-in methods are provided:
+
+- _none_ (or null) - assign each sample to the containing pixel
+- _nearest_ \- assign each pixel to the closest sample’s value (Voronoi diagram)
+- _barycentric_ \- apply barycentric interpolation over the Delaunay triangulation
+- _random-walk_ \- apply a random walk from each pixel, stopping when near a sample
+
+The **interpolate** option can also be specified as a function with the following arguments:
+
+- _index_ \- an array of numeric indexes into the channels _x_, _y_, _value_
+- _width_ \- the width of the raster grid; a positive integer
+- _height_ \- the height of the raster grid; a positive integer
+- _x_ \- an array of values representing the _x_-position of samples
+- _y_ \- an array of values representing the _y_-position of samples
+- _value_ \- an array of values representing the sample’s observed value
+
+So, _x_\[ _index_\[0\]\] represents the _x_-position of the first sample, _y_\[ _index_\[0\]\] its _y_-position, and _value_\[ _index_\[0\]\] its value ( _e.g._, the observed height for a topographic map).
+
+## interpolateNone( _index_, _width_, _height_, _x_, _y_, _value_) [​](https://observablehq.com/plot/marks/raster\#interpolateNone)
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: Plot.interpolateNone})
+```
+
+Applies a simple forward mapping of samples, binning them into pixels in the raster grid without any blending or interpolation. If multiple samples map to the same pixel, the last one wins; this can introduce bias if the points are not in random order, so use [Plot.shuffle](https://observablehq.com/plot/transforms/sort#shuffle) to randomize the input if needed.
+
+## interpolateNearest( _index_, _width_, _height_, _x_, _y_, _value_) [​](https://observablehq.com/plot/marks/raster\#interpolateNearest)
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: Plot.interpolateNearest})
+```
+
+Assigns each pixel in the raster grid the value of the closest sample; effectively a Voronoi diagram.
+
+## interpolatorBarycentric( _options_) [​](https://observablehq.com/plot/marks/raster\#interpolatorBarycentric)
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: Plot.interpolatorBarycentric()})
+```
+
+Constructs a Delaunay triangulation of the samples, and then for each pixel in the raster grid, determines the triangle that covers the pixel’s centroid and interpolates the values associated with the triangle’s vertices using [barycentric coordinates](https://en.wikipedia.org/wiki/Barycentric_coordinate_system). If the interpolated values are ordinal or categorical ( _i.e._, anything other than numbers or dates), then one of the three values will be picked randomly weighted by the barycentric coordinates; the given **random** number generator will be used, which defaults to a [linear congruential generator](https://d3js.org/d3-random#randomLcg) with a fixed seed (for deterministic results).
+
+## interpolatorRandomWalk( _options_) [​](https://observablehq.com/plot/marks/raster\#interpolatorRandomWalk)
+
+js
+
+```
+Plot.raster(ca55, {x: "LONGITUDE", y: "LATITUDE", fill: "MAG_IGRF90", interpolate: Plot.interpolatorRandomWalk()})
+```
+
+For each pixel in the raster grid, initiates a random walk, stopping when either the walk is within a given distance ( **minDistance**) of a sample or the maximum allowable number of steps ( **maxSteps**) have been taken, and then assigning the current pixel the closest sample’s value. The random walk uses the “walk on spheres” algorithm in two dimensions described by [Sawhney and Crane](https://www.cs.cmu.edu/~kmcrane/Projects/MonteCarloGeometryProcessing/index.html), SIGGRAPH 2020; the given **random** number generator will be used, which defaults to a [linear congruential generator](https://d3js.org/d3-random#randomLcg) with a fixed seed (for deterministic results).
+
+Pager
+
+[Previous pageLink](https://observablehq.com/plot/marks/link)
+
+[Next pageRect](https://observablehq.com/plot/marks/rect)
+
+[Home](https://observablehq.com/ "Home")
+
+Resources
+
+- [Forum](https://talk.observablehq.com/)
+- [Slack](https://observablehq.com/slack/join)
+- [Releases](https://github.com/observablehq/plot/releases)
+
+Observable
+
+- [Product](https://observablehq.com/product)
+- [Plot](https://observablehq.com/plot)
+- [Integrations](https://observablehq.com/data-integrations)
+- [Pricing](https://observablehq.com/pricing)

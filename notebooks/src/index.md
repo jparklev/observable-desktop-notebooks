@@ -1,72 +1,35 @@
 ---
-title: Notebook Viewer Demo
+title: Notebooks
 theme: parchment
+pager: false
 ---
 
-<style>
-:root { --max-width: 100%; }
-body { padding: 0; }
-</style>
+# Notebooks
 
-# Notebook Viewer Demo
+A collection of interactive explorations in finance, mathematics, and data visualization.
 
-This notebook is a small, self-contained Observable Framework page meant to validate the Tauri viewer:
+---
 
-- interactive inputs via `view(...)`
-- Plot rendering
-- JS bridge (`/eval`, `/cells`, `/cell/{name}`)
-- Element screenshots (`/screenshot/element`)
+## Finance & Risk
 
-## Controls
+<div class="card">
 
-```js echo
-const n = view(Inputs.range([10, 200], { value: 80, step: 1, label: "Number of points" }))
-```
+### [The Edge & The Cliff](/kelly-criterion)
+**The Mathematics of Position Sizing**
 
-```js echo
-const noise = view(Inputs.range([0, 2], { value: 0.6, step: 0.1, label: "Noise" }))
-```
+How much to bet when you have an edge? Explores volatility drag, the Kelly Criterion, and why legends like Druckenmiller size positions the way they do.
 
-```js
-const points = Array.from({length: n}, (_, i) => {
-  const x = i / (n - 1);
-  const y = Math.sin(x * Math.PI * 2) + d3.randomNormal(0, noise)();
-  return {x, y};
-})
-```
+</div>
 
-## Plot
+---
 
-```js
-Object.assign(Plot.plot({
-  height: 360,
-  grid: true,
-  marks: [
-    Plot.line(points, {x: "x", y: "y", stroke: "steelblue"}),
-    Plot.ruleY([0], {stroke: "#999"})
-  ]
-}), {id: "chart-sine"})
-```
+## Mathematics
 
-## Values Exposed to the Viewer
+<div class="card">
 
-The viewer lists cells and reads values via `expose()` from `bridge.js`. This merges values into `window.__exposed` and dispatches a custom event for change notification.
+### [The Art of Throwing Darts](/monte-carlo)
+**Monte Carlo Simulation for the Curious**
 
-```js
-import { expose } from "./bridge.js";
+What if you could solve math problems by throwing darts at a wall? Estimate π through randomness and discover why doubling precision costs four times the effort.
 
-expose({
-  n,
-  noise,
-  pointCount: points.length,
-  meanY: d3.mean(points, d => d.y)
-});
-```
-
-## Calibration Element
-
-This is useful for verifying element screenshots.
-
-```js
-htl.html`<div id="calibration" style="width: 100px; height: 100px; background: #ff2d2d; border-radius: 8px;"></div>`
-```
+</div>

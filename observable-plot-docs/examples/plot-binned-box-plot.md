@@ -1,0 +1,32 @@
+---
+url: "https://observablehq.com/@observablehq/plot-binned-box-plot"
+title: "Binned box plot"
+---
+
+# Binned box plot
+
+The [box](https://observablehq.com/plot/marks/box) mark expects a quantitative dimension (for its extent, here, *y*, representing price), and optionally an ordinal dimension. The example below uses the [scale interval option]([plot](https://observablehq.com/plot/features/scales#interval) to convert carats (a quantitative dimension) into a usable ordinal dimension, on *fx*. If you are interested in ways to make this easier, please upvote [#1330](https://github.com/observablehq/plot/issues/1330).
+
+```js
+Plot.plot({
+  marginLeft: 60,
+  y: {
+    grid: true,
+    label: "↑ Price"
+  },
+  fx: {
+    interval: 0.5,
+    label: "Carats →",
+    labelAnchor: "right",
+    tickFormat: (x) => x.toFixed(1)
+  },
+  marks: [
+    Plot.ruleY([0]),
+    Plot.boxY(diamonds, {fx: "carat", y: "price"})
+  ]
+})
+```
+
+```js
+diamonds
+```
