@@ -23,6 +23,15 @@ How much to bet when you have an edge? Explores volatility drag, the Kelly Crite
 
 <div class="card">
 
+### [Sizing the Trade, Surviving the Storm](/money-management)
+**From Kelly Theory to Real-World Money Management**
+
+10 years of BTC, Tesla, S&P 500, and Gold. How would different position sizing strategies have performed? Explore protective puts, collars, and frameworks from Buffett, Druckenmiller, and Renaissance.
+
+</div>
+
+<div class="card">
+
 ### [Hyperliquid Usage Patterns](/hyperliquid)
 **Real-Time DEX Analytics**
 
