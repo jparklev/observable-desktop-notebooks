@@ -1014,6 +1014,285 @@ const weights = view(Inputs.form({
 
 ---
 
+## Portfolio + Protection
+
+Now let's see how hedging strategies would have affected your portfolio's journey. We'll simulate rolling quarterly puts, collars, and tail hedges on the equity portion of the portfolio.
+
+```js echo
+const hedgeStrategy = view(Inputs.radio(
+  ["None", "Protective Put", "Collar", "Tail Hedge"],
+  {value: "None", label: "Hedging Strategy"}
+))
+```
+
+```js echo
+const hedgeParams = view(Inputs.form({
+  putStrikeOTM: Inputs.range([0.05, 0.20], {value: 0.10, step: 0.01, label: "Put Strike (% OTM)"}),
+  callStrikeOTM: Inputs.range([0.05, 0.25], {value: 0.10, step: 0.01, label: "Call Strike (% OTM, for Collar)"}),
+  tailHedgeBudget: Inputs.range([0.01, 0.05], {value: 0.02, step: 0.005, label: "Tail Hedge Budget (% per quarter)"})
+}))
+```
+
+```js
+{
+  const totalWeight = weights.btc + weights.tsla + weights.spy + weights.gld;
+
+  if (totalWeight !== 100) {
+    display(html`<div style="color: ${colors.negative}; font-weight: bold; margin: 1rem 0;">
+      Adjust portfolio weights above to equal 100% before simulating hedges.
+    </div>`);
+  } else {
+    // Use SPY as the base for aligned dates
+    const dateSet = new Set(spy.map(d => d.date.toISOString().slice(0, 10)));
+
+    const btcAligned = btc.filter(d => dateSet.has(d.date.toISOString().slice(0, 10)));
+    const tslaAligned = tsla.filter(d => dateSet.has(d.date.toISOString().slice(0, 10)));
+    const spyAligned = spy.filter(d => dateSet.has(d.date.toISOString().slice(0, 10)));
+    const gldAligned = gld.filter(d => dateSet.has(d.date.toISOString().slice(0, 10)));
+
+    // Equity weight (everything except GLD for hedging purposes)
+    const equityWeight = (weights.btc + weights.tsla + weights.spy) / 100;
+
+    // Simulate both unhedged and hedged portfolios
+    let unhedgedValue = 100;
+    let hedgedValue = 100;
+
+    // Track quarterly hedge costs and payoffs
+    const quarterLength = 63; // ~3 months of trading days
+    let quarterStartValue = 100;
+    let quarterStartUnhedged = 100;
+
+    // Implied vol estimate for option pricing (simplified)
+    function estimatePutCost(strikeOTM, vol) {
+      const T = 0.25; // quarterly
+      const atmCost = 0.4 * vol * Math.sqrt(T);
+      const otmDiscount = Math.exp(-strikeOTM * 3);
+      return atmCost * otmDiscount;
+    }
+
+    function estimateCallPremium(strikeOTM, vol) {
+      const T = 0.25;
+      const atmPremium = 0.4 * vol * Math.sqrt(T);
+      const otmDiscount = Math.exp(-strikeOTM * 3);
+      return atmPremium * otmDiscount;
+    }
+
+    const trajectory = spyAligned.map((d, i) => {
+      const btcReturn = btcAligned[i]?.return || 0;
+      const tslaReturn = tslaAligned[i]?.return || 0;
+      const spyReturn = d.return;
+      const gldReturn = gldAligned[i]?.return || 0;
+
+      // Portfolio return
+      const portfolioReturn =
+        (weights.btc / 100) * btcReturn +
+        (weights.tsla / 100) * tslaReturn +
+        (weights.spy / 100) * spyReturn +
+        (weights.gld / 100) * gldReturn;
+
+      // Check if new quarter (settle previous hedge)
+      const isQuarterEnd = i > 0 && i % quarterLength === 0;
+
+      if (isQuarterEnd && hedgeStrategy !== "None") {
+        // Calculate quarter return for hedge settlement
+        const quarterReturn = (hedgedValue / quarterStartValue) - 1;
+        const equityQuarterReturn = equityWeight > 0 ? quarterReturn / equityWeight : 0;
+
+        if (hedgeStrategy === "Protective Put" || hedgeStrategy === "Collar") {
+          const strikeLevel = -hedgeParams.putStrikeOTM;
+          if (equityQuarterReturn < strikeLevel) {
+            // Put pays off
+            const payoff = (strikeLevel - equityQuarterReturn) * equityWeight;
+            hedgedValue *= (1 + Math.abs(payoff));
+          }
+        }
+
+        if (hedgeStrategy === "Collar") {
+          const callStrike = hedgeParams.callStrikeOTM;
+          if (equityQuarterReturn > callStrike) {
+            // Give up gains above call strike
+            const giveUp = (equityQuarterReturn - callStrike) * equityWeight * 0.8;
+            hedgedValue *= (1 - giveUp);
+          }
+        }
+
+        if (hedgeStrategy === "Tail Hedge") {
+          const deepStrike = -0.25;
+          if (equityQuarterReturn < deepStrike) {
+            // Tail hedge pays off big
+            const payoff = Math.abs(equityQuarterReturn - deepStrike) * equityWeight * 4;
+            hedgedValue *= (1 + payoff);
+          }
+        }
+      }
+
+      // Apply daily return
+      unhedgedValue *= (1 + portfolioReturn);
+      hedgedValue *= (1 + portfolioReturn);
+
+      // Deduct hedge costs at quarter start
+      const isQuarterStart = i % quarterLength === 0;
+      if (isQuarterStart && hedgeStrategy !== "None") {
+        // Estimate portfolio vol from recent history
+        const lookback = Math.min(63, i);
+        let recentVol = 0.18;
+        if (lookback > 20) {
+          const recentReturns = spyAligned.slice(Math.max(0, i - lookback), i).map(x => x.return);
+          recentVol = (d3.deviation(recentReturns) || 0.01) * Math.sqrt(252);
+        }
+
+        let hedgeCost = 0;
+        if (hedgeStrategy === "Protective Put") {
+          hedgeCost = estimatePutCost(hedgeParams.putStrikeOTM, recentVol) * equityWeight;
+        } else if (hedgeStrategy === "Collar") {
+          const putCost = estimatePutCost(hedgeParams.putStrikeOTM, recentVol);
+          const callPremium = estimateCallPremium(hedgeParams.callStrikeOTM, recentVol);
+          hedgeCost = Math.max(0, (putCost - callPremium * 0.8)) * equityWeight;
+        } else if (hedgeStrategy === "Tail Hedge") {
+          hedgeCost = hedgeParams.tailHedgeBudget * equityWeight;
+        }
+
+        hedgedValue *= (1 - hedgeCost);
+        quarterStartValue = hedgedValue;
+        quarterStartUnhedged = unhedgedValue;
+      }
+
+      return {
+        date: d.date,
+        unhedged: unhedgedValue,
+        hedged: hedgedValue
+      };
+    });
+
+    // Calculate stats for both
+    function calcStats(values) {
+      const returns = values.slice(1).map((v, i) => (v - values[i]) / values[i]);
+      const finalValue = values[values.length - 1];
+      const annualizedVol = (d3.deviation(returns) || 0.01) * Math.sqrt(252);
+      const years = values.length / 252;
+      const annualizedReturn = Math.pow(finalValue / 100, 1/years) - 1;
+      const sharpe = annualizedReturn / annualizedVol;
+
+      let peak = 100;
+      let maxDD = 0;
+      values.forEach(v => {
+        peak = Math.max(peak, v);
+        const dd = (v - peak) / peak;
+        maxDD = Math.min(maxDD, dd);
+      });
+
+      return { finalValue, annualizedReturn, annualizedVol, sharpe, maxDD };
+    }
+
+    const unhedgedStats = calcStats(trajectory.map(d => d.unhedged));
+    const hedgedStats = calcStats(trajectory.map(d => d.hedged));
+
+    // Display comparison
+    display(html`<div class="grid grid-cols-2" style="gap: 2rem; margin: 1.5rem 0;">
+      <div class="card" style="padding: 1.5rem; border-left: 4px solid #999;">
+        <h4 style="margin-top: 0;">Unhedged Portfolio</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <div><strong>Final Value:</strong></div><div>$${d3.format(",.0f")(unhedgedStats.finalValue)}</div>
+          <div><strong>Annual Return:</strong></div><div>${(unhedgedStats.annualizedReturn * 100).toFixed(1)}%</div>
+          <div><strong>Volatility:</strong></div><div>${(unhedgedStats.annualizedVol * 100).toFixed(1)}%</div>
+          <div><strong>Sharpe:</strong></div><div>${unhedgedStats.sharpe.toFixed(2)}</div>
+          <div><strong>Max Drawdown:</strong></div><div style="color: ${colors.negative};">${(unhedgedStats.maxDD * 100).toFixed(0)}%</div>
+        </div>
+      </div>
+      <div class="card" style="padding: 1.5rem; border-left: 4px solid ${hedgeStrategy === "None" ? "#999" : colors.positive};">
+        <h4 style="margin-top: 0;">${hedgeStrategy === "None" ? "Select a Strategy" : hedgeStrategy}</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+          <div><strong>Final Value:</strong></div><div>$${d3.format(",.0f")(hedgedStats.finalValue)}</div>
+          <div><strong>Annual Return:</strong></div><div>${(hedgedStats.annualizedReturn * 100).toFixed(1)}%</div>
+          <div><strong>Volatility:</strong></div><div>${(hedgedStats.annualizedVol * 100).toFixed(1)}%</div>
+          <div><strong>Sharpe:</strong></div><div>${hedgedStats.sharpe.toFixed(2)}</div>
+          <div><strong>Max Drawdown:</strong></div><div style="color: ${hedgedStats.maxDD > unhedgedStats.maxDD ? colors.positive : colors.negative};">${(hedgedStats.maxDD * 100).toFixed(0)}%</div>
+        </div>
+      </div>
+    </div>`);
+
+    // Equity curves comparison
+    display(Plot.plot({
+      title: `Portfolio Comparison: Unhedged vs ${hedgeStrategy}`,
+      subtitle: hedgeStrategy === "None"
+        ? "Select a hedging strategy above to see the impact"
+        : `Hedging the ${((weights.btc + weights.tsla + weights.spy)).toFixed(0)}% equity allocation with quarterly ${hedgeStrategy.toLowerCase()}`,
+      width: 900,
+      height: 450,
+      y: {
+        type: "log",
+        label: "Portfolio Value ($)",
+        tickFormat: d => `$${d3.format(",.0f")(d)}`,
+        grid: true
+      },
+      x: {label: "Date"},
+      color: {
+        domain: ["Unhedged", hedgeStrategy],
+        range: ["#999", colors.positive],
+        legend: true
+      },
+      marks: [
+        Plot.ruleY([100], {stroke: "#ccc", strokeDasharray: "4,4"}),
+        // Shade areas where hedged outperforms during stress
+        Plot.areaY(
+          trajectory.filter(d => d.hedged > d.unhedged),
+          {
+            x: "date",
+            y1: "unhedged",
+            y2: "hedged",
+            fill: colors.positive,
+            fillOpacity: 0.15
+          }
+        ),
+        Plot.lineY(trajectory, {
+          x: "date",
+          y: "unhedged",
+          stroke: "#999",
+          strokeWidth: 2
+        }),
+        Plot.lineY(trajectory, {
+          x: "date",
+          y: "hedged",
+          stroke: hedgeStrategy === "None" ? "#999" : colors.positive,
+          strokeWidth: 2.5,
+          strokeDasharray: hedgeStrategy === "None" ? "4,4" : null
+        })
+      ]
+    }));
+
+    // Insight callout
+    if (hedgeStrategy !== "None") {
+      const ddImprovement = unhedgedStats.maxDD - hedgedStats.maxDD;
+      const returnDrag = unhedgedStats.annualizedReturn - hedgedStats.annualizedReturn;
+      const sharpeImprovement = hedgedStats.sharpe - unhedgedStats.sharpe;
+
+      display(html`<div class="card" style="padding: 1rem; margin: 1rem 0; background: #faf6f3;">
+        <strong>Trade-off Analysis:</strong>
+        ${ddImprovement > 0.03
+          ? `The ${hedgeStrategy.toLowerCase()} reduced max drawdown by ${(ddImprovement * 100).toFixed(0)} percentage points`
+          : `The ${hedgeStrategy.toLowerCase()} had modest impact on max drawdown`}${returnDrag > 0.005
+          ? `, but cost ${(returnDrag * 100).toFixed(1)}% in annual returns (the "insurance premium").`
+          : ` while preserving most of the upside.`}
+        ${sharpeImprovement > 0.05
+          ? ` The Sharpe ratio improved from ${unhedgedStats.sharpe.toFixed(2)} to ${hedgedStats.sharpe.toFixed(2)}, indicating better risk-adjusted returns.`
+          : sharpeImprovement < -0.05
+            ? ` However, the Sharpe ratio fell from ${unhedgedStats.sharpe.toFixed(2)} to ${hedgedStats.sharpe.toFixed(2)} — the protection cost exceeded the benefit in this period.`
+            : ``}
+      </div>`);
+    }
+  }
+}
+```
+
+**Try these scenarios:**
+- **High BTC allocation (20%+) + Protective Put**: See how a 10% OTM put cushions the 2018 and 2022 crypto crashes
+- **60/40 SPY/GLD + Collar**: Classic allocation with bounded outcomes — the call you sell pays for the put
+- **Aggressive allocation + Tail Hedge**: Small 2% quarterly premium for catastrophic protection — watch it pay off in March 2020
+
+The green shading highlights periods where the hedged portfolio outperformed. Notice how protection strategies tend to underperform in bull markets but preserve capital during crashes — exactly when it matters most.
+
+---
+
 ## Key Takeaways
 
 <div class="grid grid-cols-2" style="gap: 1.5rem; margin: 2rem 0;">
