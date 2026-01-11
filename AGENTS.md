@@ -207,6 +207,44 @@ Collect user feedback and iterate if needed.
 
 **Sync desktop launchers** - Run `./sync-desktop.py` to update `~/Desktop/Notebooks/`.
 
+**Data Sources Appendix** - When a notebook fetches external data, add an appendix at the bottom showing:
+
+1. **API/data source links** with documentation references
+2. **Fetch code** displayed (not executed) using ` ```javascript ` blocks
+3. **Data transformation code** showing how raw data becomes chart-ready
+4. **Data notes** explaining units, refresh behavior, calculations
+
+Example structure:
+
+```markdown
+## Appendix: Data Sources
+
+### API Endpoint
+
+**Source:** [API Documentation Link](https://example.com/docs)
+
+Description of what the endpoint returns.
+
+` ` `javascript
+// Fetch code shown but NOT executed (use javascript, not js)
+const data = await fetch("https://api.example.com/data").then(r => r.json())
+` ` `
+
+### Data Transformation
+
+` ` `javascript
+// Transformation code shown but NOT executed
+const processed = data.map(d => ({ ... }))
+` ` `
+
+### Data Notes
+
+- Note about data freshness
+- Note about calculations
+```
+
+This appendix serves as documentation and helps readers understand what data powers the notebook.
+
 ### Workflow Summary
 
 ```
@@ -334,6 +372,39 @@ title: My Notebook
 theme: parchment
 ---
 ```
+
+### Color Palette for Parchment Theme
+
+The parchment theme has a warm peachy background (`#f9f0ea`) and brown text (`#4a413a`). Avoid bright "digital" colors that clash with the paper aesthetic. Use the "FT Paper" palette inspired by the Financial Times' data visualization on their pink background:
+
+**Recommended Palette (FT Paper):**
+
+| Role | Hex | Name | Use For |
+|------|-----|------|---------|
+| **Primary** | `#0f5499` | FT Dark Blue | Main data, volume bars, primary metrics |
+| **Secondary** | `#a0616a` | Dusty Rose | Secondary data, contrast, highlights |
+| **Positive** | `#2d724f` | Muted Green | Gains, upward trends, success states |
+| **Negative** | `#b3312c` | Brick Red | Losses, downward trends, error states |
+| **Neutral** | `#7a8b8a` | Gray-Green | "Other" categories, muted elements |
+| **Accent** | `#c78c39` | Warm Amber | Tertiary data, count metrics |
+
+**Why These Colors Work:**
+
+1. **Editorial sophistication** - Inspired by FT's proven palette on warm backgrounds
+2. **Ink-on-paper feel** - Slightly desaturated, feels printed rather than digital
+3. **Clear semantic meaning** - Green/red for positive/negative are muted but distinct
+
+**What to Avoid:**
+
+- Bright saturated colors (too "digital" for parchment)
+- Pure yellows - get lost on cream/parchment backgrounds
+- Solarized colors - designed for code editors, too saturated for print aesthetic
+
+**Resources:**
+
+- [Datawrapper: Colors in Data Vis Style Guides](https://www.datawrapper.de/blog/colors-for-data-vis-style-guides/)
+- [FT Visual Vocabulary](https://github.com/Financial-Times/chart-doctor/tree/main/visual-vocabulary)
+- Observable Plot schemes: `rdylbu`, `warm`, `cool` work well with parchment
 
 ### Code Block Types
 

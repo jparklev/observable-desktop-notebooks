@@ -21,6 +21,15 @@ How much to bet when you have an edge? Explores volatility drag, the Kelly Crite
 
 </div>
 
+<div class="card">
+
+### [Hyperliquid Usage Patterns](/hyperliquid)
+**Real-Time DEX Analytics**
+
+Live trading data from Hyperliquid's perpetuals DEX. Explore volume concentration, open interest distribution, funding rates, and market activity across 180+ markets.
+
+</div>
+
 ---
 
 ## Mathematics
