@@ -1057,25 +1057,42 @@ const hedgeParams = view(Inputs.form({
     let unhedgedValue = 100;
     let hedgedValue = 100;
 
-    // Track quarterly hedge costs and payoffs
+    // Track quarterly values for hedge settlement
     const quarterLength = 63; // ~3 months of trading days
-    let quarterStartValue = 100;
     let quarterStartUnhedged = 100;
+    let quarterStartHedged = 100;
 
-    // Implied vol estimate for option pricing (simplified)
+    // Simplified option pricing (roughly calibrated to market)
+    // A 10% OTM quarterly put typically costs 1-2% of notional
     function estimatePutCost(strikeOTM, vol) {
-      const T = 0.25; // quarterly
-      const atmCost = 0.4 * vol * Math.sqrt(T);
-      const otmDiscount = Math.exp(-strikeOTM * 3);
-      return atmCost * otmDiscount;
+      const T = 0.25;
+      // More realistic: ~1.5% for 10% OTM put at normal vol
+      const baseCost = 0.15 * vol * Math.sqrt(T);
+      const otmDiscount = Math.exp(-strikeOTM * 5);
+      return baseCost * otmDiscount;
     }
 
     function estimateCallPremium(strikeOTM, vol) {
       const T = 0.25;
-      const atmPremium = 0.4 * vol * Math.sqrt(T);
-      const otmDiscount = Math.exp(-strikeOTM * 3);
-      return atmPremium * otmDiscount;
+      const basePremium = 0.15 * vol * Math.sqrt(T);
+      const otmDiscount = Math.exp(-strikeOTM * 5);
+      return basePremium * otmDiscount;
     }
+
+    // Put value tracking simulation:
+    // hedgedValue = stockValue + putValue
+    // The put's value is: intrinsic value + time value
+    // - Intrinsic = max(0, strike - currentPrice)
+    // - Time value = decays linearly over the quarter
+
+    // Track equity index for put valuation
+    let equityIndex = 100;
+    let quarterStartEquity = 100;
+    let putStrike = 90;  // Will be set at quarter start
+    let callStrike = 110;
+    let tailStrike = 75;
+    let putPremiumPaid = 0;
+    let callPremiumReceived = 0;
 
     const trajectory = spyAligned.map((d, i) => {
       const btcReturn = btcAligned[i]?.return || 0;
@@ -1083,60 +1100,28 @@ const hedgeParams = view(Inputs.form({
       const spyReturn = d.return;
       const gldReturn = gldAligned[i]?.return || 0;
 
-      // Portfolio return (weighted by allocation)
+      // Calculate equity-only return for put valuation
+      const equityTotalWeight = weights.btc + weights.tsla + weights.spy;
+      const equityReturn = equityTotalWeight > 0 ?
+        (weights.btc * btcReturn + weights.tsla * tslaReturn + weights.spy * spyReturn) / equityTotalWeight : 0;
+
       const portfolioReturn =
         (weights.btc / 100) * btcReturn +
         (weights.tsla / 100) * tslaReturn +
         (weights.spy / 100) * spyReturn +
         (weights.gld / 100) * gldReturn;
 
-      // Quarter boundary check
-      const isQuarterEnd = i > 0 && i % quarterLength === 0;
+      const daysIntoQuarter = i % quarterLength;
+      const isQuarterStart = daysIntoQuarter === 0;
 
-      // At quarter end, settle the hedge based on UNHEDGED portfolio performance
-      if (isQuarterEnd && hedgeStrategy !== "None") {
-        // Use the UNHEDGED portfolio's return to determine if protection triggers
-        const unhedgedQuarterReturn = (unhedgedValue / quarterStartUnhedged) - 1;
-
-        if (hedgeStrategy === "Protective Put" || hedgeStrategy === "Collar") {
-          const strikeLevel = -hedgeParams.putStrikeOTM;
-          if (unhedgedQuarterReturn < strikeLevel) {
-            // Put pays off: recover the loss beyond strike
-            // E.g., if portfolio fell 20% and strike is -10%, recover 10%
-            const excessLoss = Math.abs(unhedgedQuarterReturn - strikeLevel);
-            hedgedValue *= (1 + excessLoss);
-          }
-        }
-
-        if (hedgeStrategy === "Collar") {
-          const callStrike = hedgeParams.callStrikeOTM;
-          if (unhedgedQuarterReturn > callStrike) {
-            // Give up gains above call strike
-            const excessGain = unhedgedQuarterReturn - callStrike;
-            hedgedValue *= (1 - excessGain);
-          }
-        }
-
-        if (hedgeStrategy === "Tail Hedge") {
-          // Deep OTM put at 25% - only triggers in crashes
-          const deepStrike = -0.25;
-          if (unhedgedQuarterReturn < deepStrike) {
-            // Tail hedge pays off big - convex payoff
-            const excessLoss = Math.abs(unhedgedQuarterReturn - deepStrike);
-            // Tail hedges have convex payoffs: more leverage the further you go
-            hedgedValue *= (1 + excessLoss * 5);
-          }
-        }
-      }
-
-      // Apply daily return to both portfolios
-      unhedgedValue *= (1 + portfolioReturn);
-      hedgedValue *= (1 + portfolioReturn);
-
-      // At quarter start, deduct hedge cost and reset tracking
-      const isQuarterStart = i % quarterLength === 0;
+      // At quarter start: set strikes and pay premium
       if (isQuarterStart && hedgeStrategy !== "None") {
-        // Estimate vol from recent history for pricing
+        quarterStartEquity = equityIndex;
+        putStrike = equityIndex * (1 - hedgeParams.putStrikeOTM);
+        callStrike = equityIndex * (1 + hedgeParams.callStrikeOTM);
+        tailStrike = equityIndex * 0.75;
+
+        // Calculate and pay hedge cost
         const lookback = Math.min(63, i);
         let recentVol = 0.18;
         if (lookback > 20) {
@@ -1144,20 +1129,73 @@ const hedgeParams = view(Inputs.form({
           recentVol = (d3.deviation(recentReturns) || 0.01) * Math.sqrt(252);
         }
 
-        let hedgeCost = 0;
         if (hedgeStrategy === "Protective Put") {
-          hedgeCost = estimatePutCost(hedgeParams.putStrikeOTM, recentVol);
+          putPremiumPaid = estimatePutCost(hedgeParams.putStrikeOTM, recentVol) * equityWeight;
+          hedgedValue *= (1 - putPremiumPaid);
         } else if (hedgeStrategy === "Collar") {
           const putCost = estimatePutCost(hedgeParams.putStrikeOTM, recentVol);
           const callPremium = estimateCallPremium(hedgeParams.callStrikeOTM, recentVol);
-          // Net cost: put cost minus call premium received
-          hedgeCost = Math.max(0, putCost - callPremium * 0.9);
+          putPremiumPaid = putCost * equityWeight;
+          callPremiumReceived = callPremium * equityWeight;
+          hedgedValue *= (1 - Math.max(0, putPremiumPaid - callPremiumReceived));
         } else if (hedgeStrategy === "Tail Hedge") {
-          hedgeCost = hedgeParams.tailHedgeBudget;
+          putPremiumPaid = hedgeParams.tailHedgeBudget * equityWeight;
+          hedgedValue *= (1 - putPremiumPaid);
         }
+      }
 
-        hedgedValue *= (1 - hedgeCost);
-        quarterStartUnhedged = unhedgedValue;
+      // Update unhedged portfolio
+      unhedgedValue *= (1 + portfolioReturn);
+
+      // Update equity index BEFORE calculating put value
+      const previousEquityIndex = equityIndex;
+      equityIndex *= (1 + equityReturn);
+
+      // Calculate put's current mark-to-market value
+      // Time value: decays linearly over quarter, starting from premium
+      const timeRemaining = (quarterLength - daysIntoQuarter) / quarterLength;
+      const timeValue = putPremiumPaid * timeRemaining * 0.8;  // 80% decays as time value
+
+      // Intrinsic value: max(0, strike - current) as % of quarter start
+      const putIntrinsic = Math.max(0, (putStrike - equityIndex) / quarterStartEquity);
+      const callIntrinsic = Math.max(0, (equityIndex - callStrike) / quarterStartEquity);
+
+      // Put value = intrinsic + time value
+      const putValue = putIntrinsic + timeValue;
+      const callValue = callIntrinsic;  // Liability (we sold it)
+
+      // Hedged return: stock moves + change in option value
+      // Put covers only the equity portion, so scale benefits by equityWeight
+      if (hedgeStrategy === "None") {
+        hedgedValue *= (1 + portfolioReturn);
+      } else if (hedgeStrategy === "Protective Put") {
+        // Stock loses, but put gains value
+        // Daily P&L = stock change + put value change (scaled to equity portion)
+        const previousPutIntrinsic = Math.max(0, (putStrike - previousEquityIndex) / quarterStartEquity);
+        const previousTimeValue = putPremiumPaid * ((quarterLength - daysIntoQuarter + 1) / quarterLength) * 0.8;
+        const previousPutValue = previousPutIntrinsic + previousTimeValue;
+        const putValueChange = (putValue - previousPutValue) * equityWeight;
+
+        hedgedValue *= (1 + portfolioReturn);
+        hedgedValue += hedgedValue * putValueChange;  // Add put's contribution
+      } else if (hedgeStrategy === "Collar") {
+        // Put protects downside, call caps upside (scaled to equity portion)
+        const previousPutIntrinsic = Math.max(0, (putStrike - previousEquityIndex) / quarterStartEquity);
+        const previousCallIntrinsic = Math.max(0, (previousEquityIndex - callStrike) / quarterStartEquity);
+        const putValueChange = (putIntrinsic - previousPutIntrinsic) * equityWeight;
+        const callValueChange = (callIntrinsic - previousCallIntrinsic) * equityWeight;
+
+        hedgedValue *= (1 + portfolioReturn);
+        hedgedValue += hedgedValue * (putValueChange - callValueChange);
+      } else if (hedgeStrategy === "Tail Hedge") {
+        // Deep OTM puts only kick in for big moves (scaled to equity portion)
+        if (equityIndex < tailStrike) {
+          const tailPayoff = (tailStrike - equityIndex) / quarterStartEquity * 3 * equityWeight;
+          hedgedValue *= (1 + portfolioReturn);
+          hedgedValue += hedgedValue * tailPayoff * 0.1;  // Incremental benefit
+        } else {
+          hedgedValue *= (1 + portfolioReturn);
+        }
       }
 
       return {
