@@ -61,26 +61,37 @@ The API port is per viewer instance. Use `./viewer.py status` (or `./viewer.py -
 
 ## Notebook Creation Workflow
 
-Claude orchestrates notebook creation, using Gemini for research and visual review.
+Claude orchestrates notebook creation, using Gemini for research, educational prose, and visual review.
 
 ### Phase 1: Research & Spec
 
 **1. Topic research (Gemini Flash)**
 
-For notebooks that require domain knowledge, use Gemini Flash for web research:
+For notebooks that require domain knowledge, use Gemini Flash for web research. Go beyond basic searches — find **curriculum-grade material**:
 
 ```bash
 gemini -m gemini-3-flash-preview \
-  "Research [TOPIC] for a data visualization notebook. Find:
-   - Key concepts to explain
-   - Common datasets or data sources
-   - Interesting angles or insights to highlight
-   - Any formulas or calculations needed"
+  "Research [TOPIC] for an educational data visualization notebook. Find:
+   - University syllabi or course materials (MIT OCW, Stanford, etc.)
+   - Key concepts to explain with mathematical precision
+   - Common misconceptions students have about this topic
+   - Ground truth values for verification (e.g., 'Black-Scholes call with S=100, K=100, T=1, r=0.05, σ=0.2 should be ~10.45')
+   - Problem sets or exercises from textbooks
+   - Real datasets or APIs for demonstration"
 ```
 
-Gemini Flash can search the web to gather background information, find public datasets, and understand the domain.
+**2. Ground Truth Extraction**
 
-**2. Data sourcing**
+For quantitative topics, **extract specific numeric values** that can be verified:
+
+> *Example for Kelly Criterion:*
+> - If p=0.6, b=1 (even money), Kelly bet = 0.20 (20%)
+> - If p=0.55, b=2 (2:1 payoff), Kelly bet = 0.325 (32.5%)
+> - A 50% loss requires a 100% gain to recover (not 50%)
+
+These values become test cases during the Build phase.
+
+**3. Data sourcing**
 
 Identify where data will come from:
 - **Public APIs** - Gemini can search for relevant APIs
@@ -90,45 +101,115 @@ Identify where data will come from:
 
 For real data, create a data loader or download to `notebooks/src/`.
 
-**3. Example patterns (Gemini Flash)**
+**4. Example patterns (Gemini Flash)**
 
 Scan the 233 examples for relevant visualization patterns:
 
 ```bash
 ls observable-plot-docs/examples/ | gemini -m gemini-3-flash-preview \
-  "User wants a notebook about [TOPIC]. Which examples are most relevant?
-   Return 5-10 with brief reasons. You may read any example files for more context."
+  "User wants a notebook about [TOPIC]. Which 5-10 examples are most relevant?
+   Return a numbered list with brief reasons. Keep response under 500 words."
 ```
 
-Gemini can open and read example files if descriptions would help. Many examples include explanatory comments.
-
-**4. Claude decides approach**
+**5. Claude decides approach**
 
 Claude reviews Gemini's research and suggestions but has final authority. If no examples are helpful, Claude can use basic patterns (line charts, bar charts, etc.) without copying from examples.
 
-**5. Draft spec**
+**6. Draft spec with Test Plan**
 
-Claude writes a brief spec:
-- Teaching goal (what should reader understand?)
-- Data sources (static file, data loader, inline?)
-- Narrative arc (hook → build → insight → conclusion)
-- Key visualizations (list with brief description)
-- Interactive elements (which parameters are adjustable?)
+Claude writes a spec that includes a **Test Plan** for calculation verification:
 
-**4. Spec review (Gemini Pro)**
+```markdown
+## Spec: [Notebook Title]
+
+### Teaching Goal
+What should the reader understand after completing this notebook?
+
+### Data Sources
+- Static file, data loader, or inline?
+- APIs with rate limits or authentication?
+
+### Narrative Arc
+1. Hook - Why should the reader care?
+2. Build - Introduce concepts progressively
+3. Insight - The "aha" moment
+4. Conclusion - Practical takeaways
+
+### Key Visualizations
+- Chart 1: [description]
+- Chart 2: [description]
+
+### Interactive Elements
+- Which parameters should be adjustable?
+- What intuition should parameter exploration build?
+
+### Test Plan (REQUIRED for quantitative notebooks)
+Ground truth values that MUST be correct:
+1. `kellyBet(0.6, 1)` should equal `0.20`
+2. `recoveryGain(0.5)` should equal `1.0` (100% gain needed after 50% loss)
+3. [Add specific test cases from research]
+
+Common misconceptions to address:
+- [Misconception 1]
+- [Misconception 2]
+```
+
+**7. Spec review (Gemini Pro)**
 
 ```bash
 cat spec.md | gemini -m gemini-3-pro-preview \
-  "Review this notebook spec. Identify:
-   - Missing pieces or gaps in the narrative
-   - Better visualization approaches
-   - Opportunities for interactivity
-   - Potential teaching clarity issues"
+  "Review this notebook spec for a quantitative educational notebook. Check:
+   - Are the ground truth test cases correct and sufficient?
+   - Are there gaps in the narrative arc?
+   - What common misconceptions are missing?
+   - Are there opportunities for 'predict before reveal' exercises?
+   - Is the math rigorous enough for an educated reader?"
 ```
 
 Claude incorporates feedback and finalizes the spec.
 
-### Phase 2: Build
+### Phase 2: Build with Verification
+
+**1. Import testing utilities**
+
+For quantitative notebooks, import the testing helpers at the top:
+
+```js
+import { createSuite } from "./testing.js";
+import { Quiz } from "./quiz.js";
+```
+
+**2. Write calculations with inline tests**
+
+Place calculation logic in testable functions, then verify them immediately:
+
+```js
+// Define the calculation
+function kellyBet(p, b) {
+  const q = 1 - p;
+  return (b * p - q) / b;
+}
+
+// Create a test suite (results exposed to bridge for verification)
+const { test, view, stats } = createSuite("Kelly");
+
+test("Even money, 60% win rate", (expect) => {
+  expect(kellyBet(0.6, 1)).toBeCloseTo(0.20, 2);
+});
+
+test("2:1 odds, 55% win rate", (expect) => {
+  expect(kellyBet(0.55, 2)).toBeCloseTo(0.325, 2);
+});
+
+// Display test results (must use display() since view() returns a DOM element)
+display(view());
+```
+
+The `testing.js` library exposes results to the bridge, so `./viewer.py verify` can check for test failures.
+
+**Important**: The `view()` function returns a DOM element. In the same code block where you run tests, call `display(view())` to render results. If you try to call `view()` from a separate code block, the variable won't be in scope.
+
+**3. Build incrementally with verification**
 
 Two approaches - choose based on notebook complexity:
 
@@ -140,7 +221,7 @@ Write one section → verify → get feedback → repeat.
 # After each section
 ./viewer.py open notebooks/src/notebook.md --wait
 ./viewer.py verify
-# Review screenshots, fix issues, continue
+# Check for: page_errors, test failures in exposed_cells, visual issues
 ```
 
 **Option B: Parallel (complex notebooks)**
@@ -150,12 +231,35 @@ Write all sections at once, then batch verify:
 ```bash
 # Write complete notebook first
 ./viewer.py open notebooks/src/notebook.md --wait
-./viewer.py verify  # Returns all screenshots
+./viewer.py verify  # Returns all screenshots + test results
 ```
 
-Then send all screenshots to Gemini for batch visual review.
+**4. Check test results before visual review**
 
-### Phase 3: Visual Review (Gemini Pro)
+After `verify`, check the exposed cells for test suite results:
+
+```bash
+./viewer.py cells  # Look for test_suite_* entries
+```
+
+If any test suite shows `failed > 0`, **STOP and fix the bug before continuing**. Do not proceed to visual review with failing tests.
+
+### Phase 3: Logic & Visual Review
+
+Review happens in two stages: **logic verification** (catch calculation bugs) then **visual review** (catch presentation issues).
+
+**Stage A: Logic Verification**
+
+Before visual review, verify the math and logic are correct:
+
+```bash
+# Check test results
+./viewer.py cells | grep test_suite
+
+# If tests pass, proceed. If tests fail, fix bugs first.
+```
+
+**Stage B: Visual Review (Gemini Pro)**
 
 After `verify`, screenshots are saved to temp files. Send to Gemini for multimodal analysis:
 
@@ -170,14 +274,33 @@ gemini -m gemini-3-pro-preview \
    Evaluate:
    - Is the visualization clear and readable?
    - Are axis labels, legends, and titles effective?
-   - Is the color scheme appropriate?
+   - Is the color scheme appropriate (FT Paper palette for parchment)?
    - Any visual issues (clipping, overlap, sizing)?
    - Does it effectively teach the concept?"
 
 rm ./screenshot.png  # Clean up
 ```
 
-For batch review, send multiple screenshots with context for each.
+**Stage C: Red-Teaming (Gemini Pro)**
+
+For quantitative notebooks, run a **skeptical student** pass:
+
+```bash
+cat notebooks/src/notebook.md | gemini -m gemini-3-pro-preview \
+  "You are a skeptical graduate student reviewing this educational notebook.
+
+   Your job is to FIND BUGS, not praise the work. Look for:
+   1. Mathematical errors or incorrect formulas
+   2. Claims in the text that contradict what the charts show
+   3. Missing edge cases (what happens at 0? at infinity? at negative values?)
+   4. Logical leaps that aren't explained
+   5. Incorrect intuitions being built by the interactive elements
+   6. Quiz questions with wrong answers or misleading explanations
+
+   Be specific. Quote the problematic text and explain what's wrong."
+```
+
+This catches bugs that visual review misses. The option hedging notebook bug (mentioned in project history) would have been caught by this step.
 
 ### Phase 4: Iterate
 
@@ -249,24 +372,31 @@ This appendix serves as documentation and helps readers understand what data pow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  RESEARCH         Gemini Flash: topic research (web search) │
+│  RESEARCH         Gemini Flash: curriculum-grade research   │
+│                   Extract ground truth test values          │
 │                   Gemini Flash: data source discovery       │
-│                   Gemini Flash: scan examples               │
+│                   Gemini Flash: scan 233 examples           │
 │                   Claude decides approach                   │
 ├─────────────────────────────────────────────────────────────┤
-│  SPEC             Claude drafts spec                        │
-│                   Gemini Pro reviews                        │
+│  SPEC             Claude drafts spec + TEST PLAN            │
+│                   Gemini Pro reviews (check math rigor)     │
 │                   Claude finalizes                          │
 ├─────────────────────────────────────────────────────────────┤
-│  BUILD            Claude writes notebook                    │
-│                   ./viewer.py verify → screenshots          │
+│  BUILD            Import testing.js, quiz.js                │
+│                   Claude writes notebook with inline tests  │
+│                   Add interactive educational patterns      │
+│                   ./viewer.py verify → test results + shots │
 ├─────────────────────────────────────────────────────────────┤
-│  REVIEW           Gemini Pro reviews screenshots            │
-│                   (multimodal visual analysis)              │
+│  VERIFY           Check test_suite_* for failures           │
+│                   ⚠️ STOP if tests fail — fix bugs first    │
+├─────────────────────────────────────────────────────────────┤
+│  REVIEW           Gemini Pro: visual review (screenshots)   │
+│                   Gemini Pro: RED-TEAM (skeptical student)  │
+│                   Find logic bugs, misconceptions, gaps     │
 ├─────────────────────────────────────────────────────────────┤
 │  ITERATE          Claude fixes issues                       │
-│                   Gemini provides feedback                  │
-│                   Repeat until polished                     │
+│                   Re-run tests and red-team                 │
+│                   Repeat until robust                       │
 ├─────────────────────────────────────────────────────────────┤
 │  PRESENT          ./viewer.py show                          │
 │                   User review                               │
@@ -280,13 +410,45 @@ This appendix serves as documentation and helps readers understand what data pow
 - Use **focused prompts** with constrained output format
 - Can get stuck in research loops if prompts are too open-ended
 - Best for: topic research, example scanning, quick questions
-- Example: "List 5-10 relevant examples with brief reasons" (not "explore everything")
+- **Always constrain**: "List 5-10 items" (not "explore everything")
+- **Always limit**: "Keep response under 500 words"
 
 **Gemini Pro** (deep review, prose, visual analysis):
 - Can handle more open-ended prompts
-- Best for: spec review, visual/multimodal analysis, nuanced feedback
-- **Educational prose**: Use Gemini Pro to write multi-paragraph explanations, historical context, references with superscripts, and conceptual deep-dives. It excels at making technical topics accessible.
+- Best for: spec review, visual/multimodal analysis, nuanced feedback, red-teaming
+- **Educational prose**: Gemini Pro excels at writing multi-paragraph explanations, historical context, and conceptual deep-dives. Use it liberally for the prose portions of notebooks.
 - Give context about what you're building and what to look for
+
+**Educational Prose Generation (Gemini Pro)**
+
+When you need rigorous explanatory prose, have Gemini write it:
+
+```bash
+gemini -m gemini-3-pro-preview \
+  "Write a 3-paragraph introduction to [CONCEPT] for a data visualization notebook.
+
+   Audience: Educated non-experts (curious engineers, finance professionals)
+   Tone: Authoritative but accessible, like the Financial Times
+   Include: Historical context, why it matters, one surprising insight
+   Avoid: Jargon without explanation, hand-waving, oversimplification
+
+   The introduction should hook the reader and set up the interactive exploration that follows."
+```
+
+**Bug-Finding Prompts (Gemini Pro)**
+
+For quantitative notebooks, use Gemini Pro to find calculation errors:
+
+```bash
+cat notebooks/src/notebook.md | gemini -m gemini-3-pro-preview \
+  "Find mathematical errors in this notebook. Check:
+   1. Are formulas implemented correctly?
+   2. Do examples use correct numeric values?
+   3. Are edge cases handled (divide by zero, negative inputs)?
+   4. Do charts match the math they claim to show?
+
+   Quote problematic code and explain the bug."
+```
 
 **Screenshot handoff pattern** (for visual review):
 ```bash
@@ -357,6 +519,128 @@ const threshold = view(Inputs.range([0, 100], {label: "Threshold"}))
 // This chart updates whenever threshold changes
 Plot.dot(data.filter(d => d.value > threshold), {x: "x", y: "y"})
 ```
+
+### Interactive Educational Patterns
+
+Beyond basic parameter sliders, use these patterns to deepen understanding:
+
+**1. Prediction Exercises ("Guess Before Reveal")**
+
+Force readers to commit to a mental model before seeing the answer:
+
+```js
+const userGuess = view(Inputs.range([0, 100], {
+  label: "If an asset falls 50%, what % gain is needed to recover?",
+  value: 50
+}));
+const reveal = view(Inputs.button("Check My Answer"));
+```
+
+```js
+{
+  if (reveal) {
+    const correct = 100;  // 50% loss needs 100% gain
+    const isClose = Math.abs(userGuess - correct) < 5;
+
+    display(html`<div class="card" style="border-left: 4px solid ${isClose ? "#2d724f" : "#b3312c"};">
+      <strong>${isClose ? "Correct!" : "Not quite."}</strong>
+      A 50% loss reduces $100 to $50. To recover, you need +$50 on a $50 base = <strong>100% gain</strong>.
+    </div>`);
+
+    // Show the visual proof
+    display(Plot.plot({
+      title: "The Recovery Trap",
+      marks: [
+        Plot.line(d3.range(0, 90, 1).map(loss => ({
+          loss,
+          recovery: (1 / (1 - loss/100) - 1) * 100
+        })), {x: "loss", y: "recovery", stroke: "#b3312c"}),
+        Plot.dot([{loss: 50, recovery: 100}], {x: "loss", y: "recovery", r: 6, fill: "#0f5499"})
+      ]
+    }));
+  }
+}
+```
+
+**2. Goal-Seeking Exploration**
+
+Instead of passive slider exploration, give a specific target:
+
+```js
+display(md`### Challenge: Find the Optimal Leverage
+Adjust the slider until you maximize the **Growth Rate**. The curve turns red in the ruin zone.`);
+
+const leverage = view(Inputs.range([0, 2], {label: "Leverage", step: 0.05, value: 0.5}));
+```
+
+```js
+{
+  const p = 0.6, b = 1;
+  const optimalF = p - (1 - p);  // 0.20
+  const growth = p * Math.log(1 + b * leverage) + (1 - p) * Math.log(1 - Math.min(leverage, 0.99));
+  const efficiency = growth / (p * Math.log(1 + b * optimalF) + (1 - p) * Math.log(1 - optimalF)) * 100;
+  const color = leverage > 2 * optimalF ? "#b3312c" : "#0f5499";
+
+  display(html`<div style="font-size: 1.5rem; color: ${color};">
+    Efficiency: <strong>${efficiency.toFixed(0)}%</strong>
+    ${leverage > 2 * optimalF ? " — RUIN ZONE" : ""}
+  </div>`);
+}
+```
+
+**3. Knowledge Check Quizzes**
+
+Use the `quiz.js` helper for multiple-choice questions:
+
+```js
+import { Quiz } from "./quiz.js";
+
+display(Quiz({
+  question: "If volatility doubles, what happens to the option price?",
+  options: ["It doubles", "It increases (but less than 2x)", "It stays the same", "It decreases"],
+  correctIndex: 1,
+  explanation: "Option prices increase with volatility, but the relationship is not linear. The vega (volatility sensitivity) depends on time to expiration and moneyness."
+}));
+```
+
+**4. Worked Examples with Missing Variables**
+
+Show a complete calculation but leave one step for the reader:
+
+```js
+display(md`**Exercise:** A trading system has a **55% win rate** (p=0.55) and **2:1 payoff** (b=2).
+Using the Kelly formula f* = (bp - q) / b, calculate the optimal bet size.`);
+
+const userCalc = view(Inputs.number({label: "Your answer (decimal, e.g., 0.25)", step: 0.01}));
+```
+
+```js
+{
+  if (userCalc !== null) {
+    const correct = (2 * 0.55 - 0.45) / 2;  // 0.325
+    const error = Math.abs(userCalc - correct);
+
+    if (error < 0.01) {
+      display(md`✅ **Correct!** f* = (2 × 0.55 - 0.45) / 2 = 0.325 or **32.5%**`);
+    } else {
+      display(md`❌ **Try again.** Hint: q = 1 - 0.55 = 0.45. The numerator is (2 × 0.55) - 0.45 = 0.65.`);
+    }
+  }
+}
+```
+
+**5. Counter-Example Simulations**
+
+Address misconceptions by simulating them to failure:
+
+```js
+display(md`### The Martingale Fallacy
+"Just double your bet after every loss." Let's see what happens.`);
+
+const maxDoubles = view(Inputs.range([3, 10], {label: "Max consecutive losses before bust", step: 1, value: 5}));
+```
+
+Then simulate 1000 traders using Martingale and show how they all eventually hit the losing streak that wipes them out.
 
 ## Observable Framework Notebook Syntax
 
@@ -830,7 +1114,9 @@ HMR (Hot Module Replacement) can sometimes fail to properly reload. Solution:
 ```
 
 **Screenshots show "Not found" or wrong notebook:**
-Another viewer instance (possibly in a different worktree) may be interfering. Use instance isolation:
+1. **Check the path** - Must be `notebooks/src/notebook.md` (not `src/notebook.md` or doubled paths)
+2. **Verify the URL** in `./viewer.py open` output - should show `/notebook-name` not `/path/to/notebook-name`
+3. **Instance conflict** - Another viewer instance may be interfering. Use instance isolation:
 ```bash
 ./viewer.py --instance myname stop
 ./viewer.py --instance myname start
@@ -1042,3 +1328,87 @@ const x = 10;  // Display only, not executed
 ```
 ````
 This matters when showing Node.js code (like data loaders) that uses `process.env` - if you use ` ```js `, it will error because `process` doesn't exist in browsers.
+
+### 8. Semicolons on `view()` Break Cross-Cell Access
+This is subtle but critical. When defining reactive inputs, the semicolon determines variable scope:
+
+```js
+// WRONG - revealAnswer is NOT exported to page scope
+const revealAnswer = view(Inputs.button("Check"));  // semicolon!
+```
+
+```js
+// In another cell:
+if (revealAnswer) { ... }  // ReferenceError: Can't find variable: revealAnswer
+```
+
+```js
+// CORRECT - no semicolon exports the variable
+const revealAnswer = view(Inputs.button("Check"))
+```
+
+```js
+// Now this works!
+if (revealAnswer) { ... }
+```
+
+**Rule**: When using `view()` to create a reactive variable that other cells need, **never end with a semicolon**.
+
+### 9. htl.html Doesn't Support Reactive Expressions
+The `html` tagged template literal does NOT support reactive arrow functions:
+
+```js
+// WRONG - renders the function text, not its result
+html`<div>${() => someReactiveValue}</div>`
+// Output: "<div>() => someReactiveValue</div>"
+
+// CORRECT - use DOM manipulation for dynamic content
+const div = document.createElement("div");
+div.textContent = someReactiveValue;
+```
+
+For complex interactive components, use imperative DOM manipulation (see `quiz.js` for an example).
+
+### 10. SQL Code Blocks Have Table Registration Issues
+The ` ```sql ` syntax can fail if tables aren't properly registered:
+
+```js
+// WRONG - may fail with "table not found"
+```sql id=stats
+SELECT * FROM myData GROUP BY category
+```
+
+```js
+// CORRECT - use db.query() for reliability
+const db = await DuckDBClient.of({ myData });
+const stats = await db.query(`SELECT * FROM myData GROUP BY category`);
+```
+
+### 11. Helper Modules Should Use Plain JS State
+When creating reusable modules (like `testing.js`), avoid Observable-specific constructs:
+
+```js
+// WRONG - Mutable may not work in helper modules
+import { Mutable } from "observablehq:stdlib";
+const state = Mutable([]);  // "change is not a function" error
+
+// CORRECT - plain JS works everywhere
+const state = [];
+function addItem(item) { state.push(item); }
+```
+
+Observable's `Mutable` is designed for cross-cell reactivity in notebooks, not for internal module state.
+
+### 12. Verify Viewer Path After Restart
+After restarting the viewer, always confirm the notebook loaded correctly:
+
+```bash
+./viewer.py open notebooks/src/notebook.md --wait
+./viewer.py verify
+# Check the URL in output - should NOT show "Not found"
+```
+
+Common path mistakes:
+- `src/notebook.md` (missing `notebooks/` prefix)
+- `notebooks/notebooks/src/notebook.md` (doubled prefix)
+- `notebook` (missing `.md` extension)
